@@ -36,19 +36,20 @@ const (
 
 type Client struct {
 	net.Conn
-	websocket     bool       // 是否使用webscoket协议
-	handshakeData string     // 握手信息
-	data          util.Bytes // 缓存数据
-	isFinal       bool       // 是否最终包
-	opcode        Opcode     // 操作符
-	frameIsBinary bool       // 是否二进制数据
-	partialLength int        // 内容长度
-	isMasked      bool       // 是否存在掩码
-	state         State      // 状态码
-	length        int        // 长度
-	mask          []byte     // 掩码数据
-	lastPong      int64      // 上一次心跳时间
-	room          *Room      // 房间（每个用户只会进入到一个房间中）
+	websocket     bool           // 是否使用webscoket协议
+	handshakeData string         // 握手信息
+	data          util.Bytes     // 缓存数据
+	isFinal       bool           // 是否最终包
+	opcode        Opcode         // 操作符
+	frameIsBinary bool           // 是否二进制数据
+	partialLength int            // 内容长度
+	isMasked      bool           // 是否存在掩码
+	state         State          // 状态码
+	length        int            // 长度
+	mask          []byte         // 掩码数据
+	lastPong      int64          // 上一次心跳时间
+	room          *Room          // 房间（每个用户只会进入到一个房间中）
+	userData      map[string]any // 用户自定义数据
 }
 
 // 发送数据给所有人
@@ -263,10 +264,14 @@ func applyMask(data []byte, mask []byte) []byte {
 type ClientAction int
 
 const (
-	Error      ClientAction = -1
-	Message    ClientAction = 0
-	CreateRoom ClientAction = 1
-	JoinRoom   ClientAction = 2
+	Error          ClientAction = -1 // 通用错误，发生错误时，Data请传递`ClientError`结构体
+	Message        ClientAction = 0  // 普通消息
+	CreateRoom     ClientAction = 1  // 创建房间
+	JoinRoom       ClientAction = 2  // 加入房间
+	ChangedRoom    ClientAction = 3  // 房间信息变更
+	GetRoomMessage ClientAction = 4  // 获取房间信息
+	StartFrameSync ClientAction = 5  // 开启帧同步
+	StopFrameSync  ClientAction = 6  // 停止帧同步
 )
 
 type ClientMessage struct {
@@ -282,8 +287,20 @@ type ClientError struct {
 type ClientErrorCode int
 
 const (
-	CREATE_ROOM_ERROR ClientErrorCode = 1001
+	CREATE_ROOM_ERROR      ClientErrorCode = 1001 // 创建房间信息错误
+	GET_ROOM_ERROR         ClientErrorCode = 1002 // 获取房间信息错误
+	START_FRAME_SYNC_ERROR ClientErrorCode = 1003 // 启动帧同步错误
+	STOP_FRAME_SYNC_ERROR  ClientErrorCode = 1004 // 停止帧同步错误
 )
+
+// 用户离线时触发
+func (c *Client) onUserOut() {
+	// 如果存在房间时，则需要退出房间
+	if c.room != nil {
+		util.Log("用户退出")
+		CurrentServer.ExitRoom(c)
+	}
+}
 
 // 消息处理
 func (c *Client) onMessage(data []byte) {
@@ -319,11 +336,66 @@ func (c *Client) onMessage(data []byte) {
 						},
 					})
 				}
+			case GetRoomMessage:
+				// 获取房间信息
+				if c.room != nil {
+					c.SendToUserOp(&ClientMessage{
+						Op:   GetRoomMessage,
+						Data: c.room.GetRoomData(),
+					})
+				} else {
+					c.SendToUserOp(&ClientMessage{
+						Op: Error,
+						Data: ClientError{
+							Code: GET_ROOM_ERROR,
+							Msg:  "获取房间信息错误",
+						},
+					})
+				}
+			case StartFrameSync:
+				// 开始帧同步
+				if c.room != nil {
+					c.room.StartFrameSync()
+					c.SendToUserOp(&ClientMessage{
+						Op: StartFrameSync,
+					})
+				} else {
+					c.SendToUserOp(&ClientMessage{
+						Op: Error,
+						Data: ClientError{
+							Code: START_FRAME_SYNC_ERROR,
+							Msg:  "房间不存在，无法启动帧同步",
+						},
+					})
+				}
+			case StopFrameSync:
+				// 开始停止帧同步
+				if c.room != nil {
+					c.room.StopFrameSync()
+					c.SendToUserOp(&ClientMessage{
+						Op: StopFrameSync,
+					})
+				} else {
+					c.SendToUserOp(&ClientMessage{
+						Op: Error,
+						Data: ClientError{
+							Code: STOP_FRAME_SYNC_ERROR,
+							Msg:  "房间不存在，无法停止帧同步",
+						},
+					})
+				}
 			}
 		} else {
 			fmt.Println("处理命令失败", string(data))
 		}
 	}
+}
+
+// 获取用户数据
+func (c *Client) GetUserData() any {
+	data := map[string]any{}
+	data["data"] = c.userData
+	return data
 }
 
 // 同意WebSocket握手
@@ -367,6 +439,7 @@ func (c *Client) handshake(content string) {
 // 客户端逻辑处理
 func clientHandle(c Client) {
 	defer c.Close()
+	defer c.onUserOut()
 	defer util.Log("Out user", c.RemoteAddr().String())
 	for {
 		// 每次客户端读取的数据长度
@@ -391,6 +464,7 @@ func CreateClient(c net.Conn) Client {
 		websocket: true,
 		data:      util.Bytes{Data: []byte{}},
 		state:     Handshake,
+		userData:  map[string]any{},
 	}
 	go clientHandle(client)
 	return client

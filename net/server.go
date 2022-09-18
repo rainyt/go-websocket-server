@@ -3,6 +3,7 @@ package net
 import (
 	"fmt"
 	"net"
+	"time"
 	"websocket_server/util"
 )
 
@@ -37,9 +38,12 @@ func (s *Server) CreateRoom(user *Client) *Room {
 		return nil
 	}
 	s.create_uid++
+	interval := 1. / 30.
+	interval = float64(time.Second) * interval
 	room := Room{
-		id:     s.create_uid,
-		master: user,
+		id:       s.create_uid,
+		master:   user,
+		interval: time.Duration(interval),
 	}
 	s.rooms.Push(room)
 	room.JoinClient(user)
@@ -62,13 +66,8 @@ func (s *Server) JoinRoom(user *Client, roomid int) (*Room, bool) {
 }
 
 // 退出房间
-func (s *Server) ExitRoom(client *Client) {
-	if client.room != nil {
-		for _, v := range s.rooms.List {
-			room := v.(Room)
-			if room.id == client.room.id {
-				room.ExitClient(client)
-			}
-		}
+func (s *Server) ExitRoom(c *Client) {
+	if c.room != nil {
+		c.room.ExitClient(c)
 	}
 }

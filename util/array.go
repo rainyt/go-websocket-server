@@ -18,3 +18,8 @@ func (a *Array) Remove(o any) {
 		}
 	}
 }
+
+// 获取数组长度
+func (a *Array) Length() int {
+	return len(a.List)
+}
