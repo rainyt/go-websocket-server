@@ -3,10 +3,13 @@ package net
 import (
 	"crypto/sha1"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
 	"strings"
+	"time"
 	"websocket_server/util"
 )
 
@@ -44,6 +47,8 @@ type Client struct {
 	state         State      // 状态码
 	length        int        // 长度
 	mask          []byte     // 掩码数据
+	lastPong      int64      // 上一次心跳时间
+	room          *Room      // 房间（每个用户只会进入到一个房间中）
 }
 
 // 发送数据给所有人
@@ -58,6 +63,17 @@ func (c Client) SendToUser(data []byte) {
 	c.Write(data)
 }
 
+// 发送客户端数据到当前用户
+func (c Client) SendToUserOp(data *ClientMessage) {
+	v, err := json.Marshal(data)
+	if err == nil {
+		// 发送
+		util.Log("发送内容：", string(v))
+		bdata := prepareFrame(v, Text, true)
+		c.SendToUser(bdata.Data)
+	}
+}
+
 // 数据缓存处理
 func (c *Client) onData(data []byte) {
 	c.data.WriteBytes(data)
@@ -65,7 +81,6 @@ func (c *Client) onData(data []byte) {
 	if c.state == Handshake {
 		// 接收到结束符
 		cdata := c.data.ReadUTFString(c.data.ByteLength())
-		util.Log("cdata=", cdata)
 		c.handshakeData += cdata
 		index := strings.Index(c.handshakeData, "\r\n\r\n")
 		if index != -1 {
@@ -213,11 +228,12 @@ func ReadWebSocketData(c *Client) ([]byte, bool) {
 			}
 			util.Log(string(data))
 			// 回复一句话
-			c.WriteWebSocketData([]byte("我是来自服务器的消息"), Text)
+			// c.WriteWebSocketData([]byte("我是来自服务器的消息"), Text)
+			c.onMessage(data)
 		case Ping:
-
+			c.WriteWebSocketData(data, Pong)
 		case Pong:
-
+			c.lastPong = time.Now().Unix()
 		case Close:
 			data = applyMask(data, c.mask)
 			util.Log("中断：", string(data))
@@ -242,6 +258,72 @@ func applyMask(data []byte, mask []byte) []byte {
 		newdata[i] = v ^ mask[i%makelen]
 	}
 	return newdata
+}
+
+type ClientAction int
+
+const (
+	Error      ClientAction = -1
+	Message    ClientAction = 0
+	CreateRoom ClientAction = 1
+	JoinRoom   ClientAction = 2
+)
+
+type ClientMessage struct {
+	Op   ClientAction
+	Data any
+}
+
+type ClientError struct {
+	Code ClientErrorCode
+	Msg  string
+}
+
+type ClientErrorCode int
+
+const (
+	CREATE_ROOM_ERROR ClientErrorCode = 1001
+)
+
+// 消息处理
+func (c *Client) onMessage(data []byte) {
+	if !c.frameIsBinary {
+		// 解析API操作
+		message := ClientMessage{}
+		err := json.Unmarshal(data, &message)
+		if err == nil {
+			fmt.Println("处理命令", message)
+			switch message.Op {
+			case Message:
+				// 接收到消息
+				fmt.Println("服务器接收到消息：", message.Data)
+			case CreateRoom:
+				// 创建一个房间
+				room := CurrentServer.CreateRoom(c)
+				util.Log("开始创建房间", room)
+				if room != nil {
+					// 创建成功
+					c.SendToUserOp(&ClientMessage{
+						Op: CreateRoom,
+						Data: map[string]any{
+							"id": room.id,
+						},
+					})
+				} else {
+					// 创建失败
+					c.SendToUserOp(&ClientMessage{
+						Op: Error,
+						Data: ClientError{
+							Code: CREATE_ROOM_ERROR,
+							Msg:  "创建房间失败",
+						},
+					})
+				}
+			}
+		} else {
+			fmt.Println("处理命令失败", string(data))
+		}
+	}
 }
 
 // 同意WebSocket握手

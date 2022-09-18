@@ -9,9 +9,12 @@ import (
 var CurrentServer *Server
 
 type Server struct {
-	users util.Array
+	users      util.Array // 用户列表
+	rooms      util.Array // 房间列表
+	create_uid int        // 房间的创建ID
 }
 
+// 开始侦听服务器
 func (s *Server) Listen(port int) {
 	CurrentServer = s
 	fmt.Println("Server start:127.0.0.1:" + fmt.Sprint(port))
@@ -24,6 +27,48 @@ func (s *Server) Listen(port int) {
 		if e == nil {
 			// 将用户写入到用户列表中
 			s.users.Push(CreateClient(c))
+		}
+	}
+}
+
+// 创建房间
+func (s *Server) CreateRoom(user *Client) *Room {
+	if user.room != nil {
+		return nil
+	}
+	s.create_uid++
+	room := Room{
+		id:     s.create_uid,
+		master: user,
+	}
+	s.rooms.Push(room)
+	room.JoinClient(user)
+	return &room
+}
+
+// 加入房间
+func (s *Server) JoinRoom(user *Client, roomid int) (*Room, bool) {
+	// 如果用户已经在房间中，则无法继续加入
+	if user.room != nil {
+		return nil, false
+	}
+	for _, v := range s.rooms.List {
+		room := v.(*Room)
+		if room.id == roomid {
+			return room, true
+		}
+	}
+	return nil, false
+}
+
+// 退出房间
+func (s *Server) ExitRoom(client *Client) {
+	if client.room != nil {
+		for _, v := range s.rooms.List {
+			room := v.(Room)
+			if room.id == client.room.id {
+				room.ExitClient(client)
+			}
 		}
 	}
 }
