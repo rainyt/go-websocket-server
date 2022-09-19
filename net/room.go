@@ -56,7 +56,7 @@ func (r *Room) StopFrameSync() {
 // 给房间的所有用户发送消息
 func (r *Room) SendToAllUser(data []byte) {
 	for _, v := range r.users.List {
-		v.(Client).SendToUser(data)
+		v.(*Client).SendToUser(data)
 	}
 }
 

@@ -52,22 +52,24 @@ type Client struct {
 	userData      map[string]any // 用户自定义数据
 	frames        util.Array     // 用户帧同步缓存操作
 	uid           int            // 用户ID
+	name          string         // 用户名称
+	online        bool           // 是否在线
 }
 
 // 发送数据给所有人
-func (c Client) SendToAllUser(data []byte) {
+func (c *Client) SendToAllUser(data []byte) {
 	for _, v := range CurrentServer.users.List {
-		v.(Client).SendToUser(data)
+		v.(*Client).SendToUser(data)
 	}
 }
 
 // 单独发送数据到当前用户
-func (c Client) SendToUser(data []byte) {
+func (c *Client) SendToUser(data []byte) {
 	c.Write(data)
 }
 
 // 发送客户端数据到当前用户
-func (c Client) SendToUserOp(data *ClientMessage) {
+func (c *Client) SendToUserOp(data *ClientMessage) {
 	v, err := json.Marshal(data)
 	if err == nil {
 		// 发送
@@ -99,7 +101,7 @@ func (c *Client) onData(data []byte) {
 }
 
 // 发送一个WebSocket包
-func (c Client) WriteWebSocketData(data []byte, opcode Opcode) {
+func (c *Client) WriteWebSocketData(data []byte, opcode Opcode) {
 	var dataContent = prepareFrame(data, opcode, true).Data
 	c.SendToUser(dataContent)
 	util.Log("发送的长度", len(dataContent))
@@ -119,9 +121,7 @@ func prepareFrame(data []byte, opcode Opcode, isFinal bool) util.Bytes {
 		sizeFinal = 0x80
 	}
 	newdata.Write(int(opcode) | sizeFinal)
-	util.Log("newdata.length=", newdata.ByteLength())
 	var byteLength = len(data)
-	util.Log("byteLength=", byteLength)
 	if byteLength < 126 {
 		newdata.Write(byteLength | sizeMask)
 	} else if byteLength < 65536 {
@@ -132,19 +132,15 @@ func prepareFrame(data []byte, opcode Opcode, isFinal bool) util.Bytes {
 		newdata.Write(0)
 		newdata.Write(byteLength)
 	}
-	util.Log("newdata.length=", newdata.ByteLength())
 	if isMasked {
 		for i := 0; i < 4; i++ {
 			newdata.Data = append(newdata.Data, mask[i])
 		}
-		util.Log("newdata.length=", newdata.ByteLength())
-		util.Log("mask=", mask)
 		maskdata := applyMask(data, mask[:])
 		newdata.WriteBytes(maskdata)
 	} else {
 		newdata.WriteBytes(data)
 	}
-	util.Log("newdata.length=", newdata.ByteLength())
 	return newdata
 }
 
@@ -297,6 +293,7 @@ const (
 	UPLOAD_FRAME_ERROR     ClientErrorCode = 1005 // 上传帧同步数据错误
 	LOGIN_ERROR            ClientErrorCode = 1006 // 登陆失败
 	LOGIN_OUT_ERROR        ClientErrorCode = 1007 // 在别处登陆事件
+	OP_ERROR               ClientErrorCode = 1008 // 无效的操作指令
 )
 
 // 用户离线时触发
@@ -304,7 +301,11 @@ func (c *Client) onUserOut() {
 	// 如果存在房间时，则需要退出房间
 	if c.room != nil {
 		util.Log("用户退出")
-		CurrentServer.ExitRoom(c)
+		c.online = false
+		// 如果房间存在，而且房间没有锁定时，离线则可以直接退出房间
+		if c.room != nil && !c.room.lock {
+			CurrentServer.ExitRoom(c)
+		}
 	}
 }
 
@@ -316,6 +317,30 @@ func (c *Client) onMessage(data []byte) {
 		err := json.Unmarshal(data, &message)
 		if err == nil {
 			fmt.Println("处理命令", message)
+			if c.uid == 0 {
+				switch message.Op {
+				case Login:
+					if c.uid == 0 {
+						loginData := message.Data.(map[string]any)
+						userName := loginData["username"]
+						openId := loginData["openid"]
+						// 只需要用户名和OpenId即可登陆
+						userData := CurrentServer.usersSQL.login(c, openId.(string), userName.(string))
+						util.Log("登陆成功：", userData)
+						c.SendToUserOp(&ClientMessage{
+							Op: Login,
+							Data: map[string]any{
+								"uid": userData.uid,
+							},
+						})
+					} else {
+						c.SendError(LOGIN_ERROR, "已登陆")
+					}
+				default:
+					c.SendError(OP_ERROR, "无效的操作指令："+fmt.Sprint(message.Op))
+				}
+				return
+			}
 			switch message.Op {
 			case Message:
 				// 接收到消息
@@ -384,23 +409,8 @@ func (c *Client) onMessage(data []byte) {
 				} else {
 					c.SendError(UPLOAD_FRAME_ERROR, "上传帧同步数据错误")
 				}
-			case Login:
-				if c.uid == 0 {
-					loginData := message.Data.(map[string]any)
-					userName := loginData["username"]
-					openId := loginData["openid"]
-					// 只需要用户名和OpenId即可登陆
-					userData := CurrentServer.usersSQL.login(c, openId.(string), userName.(string))
-					util.Log("登陆成功：", userData)
-					c.SendToUserOp(&ClientMessage{
-						Op: Login,
-						Data: map[string]any{
-							"uid": userData.uid,
-						},
-					})
-				} else {
-					c.SendError(LOGIN_ERROR, "已登陆")
-				}
+			default:
+				c.SendError(OP_ERROR, "无效的操作指令："+fmt.Sprint(message.Op))
 			}
 		} else {
 			fmt.Println("处理命令失败", string(data))
@@ -421,6 +431,8 @@ func (c *Client) SendError(errCode ClientErrorCode, data string) {
 // 获取用户数据
 func (c *Client) GetUserData() any {
 	data := map[string]any{}
+	data["uid"] = c.uid
+	data["name"] = c.name
 	data["data"] = c.userData
 	return data
 }
@@ -464,7 +476,7 @@ func (c *Client) handshake(content string) {
 }
 
 // 客户端逻辑处理
-func clientHandle(c Client) {
+func clientHandle(c *Client) {
 	defer c.Close()
 	defer c.onUserOut()
 	defer util.Log("Out user", c.RemoteAddr().String())
@@ -492,7 +504,8 @@ func CreateClient(c net.Conn) Client {
 		data:      util.Bytes{Data: []byte{}},
 		state:     Handshake,
 		userData:  map[string]any{},
+		online:    true,
 	}
-	go clientHandle(client)
+	go clientHandle(&client)
 	return client
 }
