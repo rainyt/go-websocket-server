@@ -25,6 +25,7 @@ const (
 	StopFrameSync  ClientAction = 6  // 停止帧同步
 	UploadFrame    ClientAction = 7  // 上传帧同步数据
 	Login          ClientAction = 8  // 登陆用户
+	FData          ClientAction = 9  // 帧数据
 )
 
 type ClientMessage struct {
