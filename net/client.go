@@ -12,6 +12,44 @@ import (
 	"websocket_server/util"
 )
 
+type ClientAction int
+
+const (
+	Error          ClientAction = -1 // 通用错误，发生错误时，Data请传递`ClientError`结构体
+	Message        ClientAction = 0  // 普通消息
+	CreateRoom     ClientAction = 1  // 创建房间
+	JoinRoom       ClientAction = 2  // 加入房间
+	ChangedRoom    ClientAction = 3  // 房间信息变更
+	GetRoomMessage ClientAction = 4  // 获取房间信息
+	StartFrameSync ClientAction = 5  // 开启帧同步
+	StopFrameSync  ClientAction = 6  // 停止帧同步
+	UploadFrame    ClientAction = 7  // 上传帧同步数据
+	Login          ClientAction = 8  // 登陆用户
+)
+
+type ClientMessage struct {
+	Op   ClientAction
+	Data any
+}
+
+type ClientError struct {
+	Code ClientErrorCode
+	Msg  string
+}
+
+type ClientErrorCode int
+
+const (
+	CREATE_ROOM_ERROR      ClientErrorCode = 1001 // 创建房间信息错误
+	GET_ROOM_ERROR         ClientErrorCode = 1002 // 获取房间信息错误
+	START_FRAME_SYNC_ERROR ClientErrorCode = 1003 // 启动帧同步错误
+	STOP_FRAME_SYNC_ERROR  ClientErrorCode = 1004 // 停止帧同步错误
+	UPLOAD_FRAME_ERROR     ClientErrorCode = 1005 // 上传帧同步数据错误
+	LOGIN_ERROR            ClientErrorCode = 1006 // 登陆失败
+	LOGIN_OUT_ERROR        ClientErrorCode = 1007 // 在别处登陆事件
+	OP_ERROR               ClientErrorCode = 1008 // 无效的操作指令
+)
+
 type Opcode int
 
 const (
@@ -256,44 +294,6 @@ func applyMask(data []byte, mask []byte) []byte {
 	}
 	return newdata
 }
-
-type ClientAction int
-
-const (
-	Error          ClientAction = -1 // 通用错误，发生错误时，Data请传递`ClientError`结构体
-	Message        ClientAction = 0  // 普通消息
-	CreateRoom     ClientAction = 1  // 创建房间
-	JoinRoom       ClientAction = 2  // 加入房间
-	ChangedRoom    ClientAction = 3  // 房间信息变更
-	GetRoomMessage ClientAction = 4  // 获取房间信息
-	StartFrameSync ClientAction = 5  // 开启帧同步
-	StopFrameSync  ClientAction = 6  // 停止帧同步
-	UploadFrame    ClientAction = 7  // 上传帧同步数据
-	Login          ClientAction = 8  // 登陆用户
-)
-
-type ClientMessage struct {
-	Op   ClientAction
-	Data any
-}
-
-type ClientError struct {
-	Code ClientErrorCode
-	Msg  string
-}
-
-type ClientErrorCode int
-
-const (
-	CREATE_ROOM_ERROR      ClientErrorCode = 1001 // 创建房间信息错误
-	GET_ROOM_ERROR         ClientErrorCode = 1002 // 获取房间信息错误
-	START_FRAME_SYNC_ERROR ClientErrorCode = 1003 // 启动帧同步错误
-	STOP_FRAME_SYNC_ERROR  ClientErrorCode = 1004 // 停止帧同步错误
-	UPLOAD_FRAME_ERROR     ClientErrorCode = 1005 // 上传帧同步数据错误
-	LOGIN_ERROR            ClientErrorCode = 1006 // 登陆失败
-	LOGIN_OUT_ERROR        ClientErrorCode = 1007 // 在别处登陆事件
-	OP_ERROR               ClientErrorCode = 1008 // 无效的操作指令
-)
 
 // 用户离线时触发
 func (c *Client) onUserOut() {
