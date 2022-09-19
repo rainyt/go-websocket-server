@@ -91,7 +91,12 @@ func (c *Client) onMessage(data []byte) {
 			case UploadFrame:
 				if c.room != nil && c.room.frameSync {
 					// 缓存到用户数据中
-					fdata, err := message.Data.(FrameData)
+					mapdata, err := message.Data.(map[string]any)
+					fdata := FrameData{
+						Time: int64(mapdata["Time"].(float64)),
+						Data: mapdata["Data"],
+					}
+					util.Log("帧同步数据：", fdata, err)
 					if err {
 						// 验证是否操作数据是否已无效
 						if !isInvalidData(&fdata) {

@@ -111,7 +111,7 @@ func (c *Client) SendToUserOp(data *ClientMessage) {
 	v, err := json.Marshal(data)
 	if err == nil {
 		// 发送
-		util.Log("发送内容：", string(v))
+		// util.Log("发送内容：", string(v))
 		bdata := prepareFrame(v, Text, true)
 		c.SendToUser(bdata.Data)
 	}

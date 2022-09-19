@@ -28,9 +28,11 @@ func onRoomFrame(r *Room) {
 			c := v.(*Client)
 			a := frameData[c.uid]
 			for _, v2 := range c.frames.List {
-				f := v2.(*FrameData)
-				a = append(a, f)
+				f := v2.(FrameData)
+				a = append(a, f.Data)
 			}
+			frameData[c.uid] = a
+			c.frames.List = []any{}
 		}
 		// 发送帧数据到客户端
 		for _, v := range r.users.List {
