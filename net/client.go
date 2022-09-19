@@ -50,6 +50,8 @@ type Client struct {
 	lastPong      int64          // 上一次心跳时间
 	room          *Room          // 房间（每个用户只会进入到一个房间中）
 	userData      map[string]any // 用户自定义数据
+	frames        util.Array     // 用户帧同步缓存操作
+	uid           int            // 用户ID
 }
 
 // 发送数据给所有人
@@ -78,7 +80,6 @@ func (c Client) SendToUserOp(data *ClientMessage) {
 // 数据缓存处理
 func (c *Client) onData(data []byte) {
 	c.data.WriteBytes(data)
-	util.Log("onData")
 	if c.state == Handshake {
 		// 接收到结束符
 		cdata := c.data.ReadUTFString(c.data.ByteLength())
@@ -177,11 +178,11 @@ func ReadWebSocketData(c *Client) ([]byte, bool) {
 		c.partialLength = ((b1 >> 0) & 0x7F)
 		c.isMasked = ((b1 >> 7) & 1) != 0
 
-		util.Log(b0, b1)
-		util.Log("c.isFinal=", c.isFinal)
-		util.Log("c.isMasked=", c.isMasked)
-		util.Log("c.opcode=", c.opcode)
-		util.Log("c.partialLength=", c.partialLength)
+		// util.Log(b0, b1)
+		// util.Log("c.isFinal=", c.isFinal)
+		// util.Log("c.isMasked=", c.isMasked)
+		// util.Log("c.opcode=", c.opcode)
+		// util.Log("c.partialLength=", c.partialLength)
 		c.state = HeadExtraLength
 	case HeadExtraLength:
 		if c.partialLength == 126 {
@@ -203,18 +204,18 @@ func ReadWebSocketData(c *Client) ([]byte, bool) {
 		}
 		c.state = HeadExtraMask
 
-		util.Log("c.length=", c.length)
+		// util.Log("c.length=", c.length)
 	case HeadExtraMask:
 		if c.isMasked {
 			if byteLength < 4 {
 				return nil, false
 			}
 			c.mask = c.data.ReadBytes(4)
-			util.Log("c.mask=", c.mask)
+			// util.Log("c.mask=", c.mask)
 		}
 		c.state = Body
 	case Body:
-		util.Log("len=", byteLength, c.length)
+		// util.Log("len=", byteLength, c.length)
 		if byteLength < c.length {
 			return nil, false
 		}
@@ -272,6 +273,8 @@ const (
 	GetRoomMessage ClientAction = 4  // 获取房间信息
 	StartFrameSync ClientAction = 5  // 开启帧同步
 	StopFrameSync  ClientAction = 6  // 停止帧同步
+	UploadFrame    ClientAction = 7  // 上传帧同步数据
+	Login          ClientAction = 8  // 登陆用户
 )
 
 type ClientMessage struct {
@@ -291,6 +294,9 @@ const (
 	GET_ROOM_ERROR         ClientErrorCode = 1002 // 获取房间信息错误
 	START_FRAME_SYNC_ERROR ClientErrorCode = 1003 // 启动帧同步错误
 	STOP_FRAME_SYNC_ERROR  ClientErrorCode = 1004 // 停止帧同步错误
+	UPLOAD_FRAME_ERROR     ClientErrorCode = 1005 // 上传帧同步数据错误
+	LOGIN_ERROR            ClientErrorCode = 1006 // 登陆失败
+	LOGIN_OUT_ERROR        ClientErrorCode = 1007 // 在别处登陆事件
 )
 
 // 用户离线时触发
@@ -328,13 +334,7 @@ func (c *Client) onMessage(data []byte) {
 					})
 				} else {
 					// 创建失败
-					c.SendToUserOp(&ClientMessage{
-						Op: Error,
-						Data: ClientError{
-							Code: CREATE_ROOM_ERROR,
-							Msg:  "创建房间失败",
-						},
-					})
+					c.SendError(CREATE_ROOM_ERROR, "创建房间失败")
 				}
 			case GetRoomMessage:
 				// 获取房间信息
@@ -344,13 +344,7 @@ func (c *Client) onMessage(data []byte) {
 						Data: c.room.GetRoomData(),
 					})
 				} else {
-					c.SendToUserOp(&ClientMessage{
-						Op: Error,
-						Data: ClientError{
-							Code: GET_ROOM_ERROR,
-							Msg:  "获取房间信息错误",
-						},
-					})
+					c.SendError(GET_ROOM_ERROR, "获取房间信息错误")
 				}
 			case StartFrameSync:
 				// 开始帧同步
@@ -360,13 +354,7 @@ func (c *Client) onMessage(data []byte) {
 						Op: StartFrameSync,
 					})
 				} else {
-					c.SendToUserOp(&ClientMessage{
-						Op: Error,
-						Data: ClientError{
-							Code: START_FRAME_SYNC_ERROR,
-							Msg:  "房间不存在，无法启动帧同步",
-						},
-					})
+					c.SendError(START_FRAME_SYNC_ERROR, "房间不存在，无法启动帧同步")
 				}
 			case StopFrameSync:
 				// 开始停止帧同步
@@ -376,19 +364,58 @@ func (c *Client) onMessage(data []byte) {
 						Op: StopFrameSync,
 					})
 				} else {
+					c.SendError(STOP_FRAME_SYNC_ERROR, "房间不存在，无法停止帧同步")
+				}
+			case UploadFrame:
+				if c.room != nil && c.room.frameSync {
+					// 缓存到用户数据中
+					fdata, err := message.Data.(FrameData)
+					if err {
+						// 验证是否操作数据是否已无效
+						if !isInvalidData(&fdata) {
+							c.frames.Push(fdata)
+							c.SendToUserOp(&ClientMessage{
+								Op: UploadFrame,
+							})
+						} else {
+							c.SendError(UPLOAD_FRAME_ERROR, "上传帧数据时间戳错误")
+						}
+					}
+				} else {
+					c.SendError(UPLOAD_FRAME_ERROR, "上传帧同步数据错误")
+				}
+			case Login:
+				if c.uid == 0 {
+					loginData := message.Data.(map[string]any)
+					userName := loginData["username"]
+					openId := loginData["openid"]
+					// 只需要用户名和OpenId即可登陆
+					userData := CurrentServer.usersSQL.login(c, openId.(string), userName.(string))
+					util.Log("登陆成功：", userData)
 					c.SendToUserOp(&ClientMessage{
-						Op: Error,
-						Data: ClientError{
-							Code: STOP_FRAME_SYNC_ERROR,
-							Msg:  "房间不存在，无法停止帧同步",
+						Op: Login,
+						Data: map[string]any{
+							"uid": userData.uid,
 						},
 					})
+				} else {
+					c.SendError(LOGIN_ERROR, "已登陆")
 				}
 			}
 		} else {
 			fmt.Println("处理命令失败", string(data))
 		}
 	}
+}
+
+func (c *Client) SendError(errCode ClientErrorCode, data string) {
+	c.SendToUserOp(&ClientMessage{
+		Op: Error,
+		Data: ClientError{
+			Code: errCode,
+			Msg:  data,
+		},
+	})
 }
 
 // 获取用户数据

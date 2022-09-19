@@ -10,9 +10,10 @@ import (
 var CurrentServer *Server
 
 type Server struct {
-	users      util.Array // 用户列表
-	rooms      util.Array // 房间列表
-	create_uid int        // 房间的创建ID
+	users      util.Array  // 用户列表
+	rooms      util.Array  // 房间列表
+	create_uid int         // 房间的创建ID
+	usersSQL   UserDataSQL // 用户数据库，管理已注册、登陆的用户基础信息
 }
 
 // 开始侦听服务器

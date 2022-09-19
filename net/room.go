@@ -5,12 +5,17 @@ import (
 	"websocket_server/util"
 )
 
+type RoomClient struct {
+	*Client
+}
+
 type Room struct {
 	id        int
 	master    *Client       // 房主
 	users     util.Array    // 房间用户
 	frameSync bool          // 是否开启帧同步
 	interval  time.Duration // 帧同步的间隔
+	lock      bool          // 房间是否锁定（如果游戏已经开始，则会锁定房间，直到游戏结束，如果用户离线，不会立即退出房间，需要通过`ExitRoom`才能退出房间）
 }
 
 // 房间的帧同步实现
@@ -21,7 +26,14 @@ func onRoomFrame(r *Room) {
 			util.Log("房间停止帧同步")
 			break
 		}
-		util.Log("frameing")
+		// frameData := map[int][]any{}
+		// // 收集房间的所有用户操作
+		// for _, v := range r.users.List {
+		// 	c := v.(*Client)
+		// 	for _, v2 := range c.frames.List {
+		// 		f := v2.(*FrameData)
+		// 	}
+		// }
 		// 帧同步发送间隔
 		time.Sleep(r.interval)
 	}
