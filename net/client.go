@@ -306,6 +306,8 @@ func (c *Client) onUserOut() {
 		if c.room != nil && !c.room.lock {
 			CurrentServer.ExitRoom(c)
 		}
+		// 从服务器列表中删除
+		CurrentServer.users.Remove(c)
 	}
 }
 
@@ -359,7 +361,7 @@ func (c *Client) onMessage(data []byte) {
 					})
 				} else {
 					// 创建失败
-					c.SendError(CREATE_ROOM_ERROR, "创建房间失败")
+					c.SendError(CREATE_ROOM_ERROR, "房间已存在，无法创建")
 				}
 			case GetRoomMessage:
 				// 获取房间信息
@@ -369,7 +371,7 @@ func (c *Client) onMessage(data []byte) {
 						Data: c.room.GetRoomData(),
 					})
 				} else {
-					c.SendError(GET_ROOM_ERROR, "获取房间信息错误")
+					c.SendError(GET_ROOM_ERROR, "不存在房间信息")
 				}
 			case StartFrameSync:
 				// 开始帧同步

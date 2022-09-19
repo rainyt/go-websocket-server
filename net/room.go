@@ -45,12 +45,14 @@ func (r *Room) StartFrameSync() {
 		return
 	}
 	r.frameSync = true
+	r.lock = true
 	go onRoomFrame(r)
 }
 
 // 停止帧同步
 func (r *Room) StopFrameSync() {
 	r.frameSync = false
+	r.lock = false
 }
 
 // 给房间的所有用户发送消息
