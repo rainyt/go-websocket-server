@@ -26,6 +26,7 @@ const (
 	UploadFrame    ClientAction = 7  // 上传帧同步数据
 	Login          ClientAction = 8  // 登陆用户
 	FData          ClientAction = 9  // 帧数据
+	RoomMessage    ClientAction = 10 // 发送房间消息
 )
 
 type ClientMessage struct {
@@ -49,6 +50,7 @@ const (
 	LOGIN_ERROR            ClientErrorCode = 1006 // 登陆失败
 	LOGIN_OUT_ERROR        ClientErrorCode = 1007 // 在别处登陆事件
 	OP_ERROR               ClientErrorCode = 1008 // 无效的操作指令
+	SEND_ROOM_ERROR        ClientErrorCode = 1009 // 发送房间消息错误
 )
 
 type Opcode int

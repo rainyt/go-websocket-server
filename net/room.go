@@ -6,18 +6,31 @@ import (
 )
 
 type Room struct {
-	id        int
-	master    *Client       // 房主
-	users     util.Array    // 房间用户
-	frameSync bool          // 是否开启帧同步
-	interval  time.Duration // 帧同步的间隔
-	lock      bool          // 房间是否锁定（如果游戏已经开始，则会锁定房间，直到游戏结束，如果用户离线，不会立即退出房间，需要通过`ExitRoom`才能退出房间）
+	id         int
+	master     *Client       // 房主
+	users      util.Array    // 房间用户
+	frameSync  bool          // 是否开启帧同步
+	interval   time.Duration // 帧同步的间隔
+	lock       bool          // 房间是否锁定（如果游戏已经开始，则会锁定房间，直到游戏结束，如果用户离线，不会立即退出房间，需要通过`ExitRoom`才能退出房间）
+	frameDatas []any         // 房间帧数据
+	cacheId    int           // 房间已缓存的时间轴Id
+}
+
+// 是否为无效房间
+func (r *Room) isInvalidRoom() bool {
+	hasOnline := false
+	for _, v := range r.users.List {
+		if v.(Client).online {
+			hasOnline = true
+		}
+	}
+	return r.users.Length() == 0 || !hasOnline
 }
 
 // 房间的帧同步实现
 func onRoomFrame(r *Room) {
 	for {
-		if !r.frameSync || r.users.Length() == 0 {
+		if !r.frameSync || r.isInvalidRoom() {
 			// 帧同步停止，或者房间已经不存在用户时
 			util.Log("房间停止帧同步")
 			break
@@ -31,15 +44,25 @@ func onRoomFrame(r *Room) {
 				f := v2.(FrameData)
 				a = append(a, f.Data)
 			}
-			frameData[c.uid] = a
+			if a != nil {
+				frameData[c.uid] = a
+			}
 			c.frames.List = []any{}
 		}
+
+		// 缓存数据
+		r.cacheId++
+		r.frameDatas = append(r.frameDatas, frameData)
+
 		// 发送帧数据到客户端
 		for _, v := range r.users.List {
 			c := v.(*Client)
 			c.SendToUserOp(&ClientMessage{
-				Op:   FData,
-				Data: frameData,
+				Op: FData,
+				Data: map[string]any{
+					"t": r.cacheId,
+					"d": frameData,
+				},
 			})
 		}
 		// 帧同步发送间隔
@@ -71,9 +94,11 @@ func (r *Room) SendToAllUser(data []byte) {
 }
 
 // 给房间的所有用户发送消息
-func (r *Room) SendToAllUserOp(data *ClientMessage) {
+func (r *Room) SendToAllUserOp(data *ClientMessage, igoneClient *Client) {
 	for _, v := range r.users.List {
-		v.(*Client).SendToUserOp(data)
+		if v != igoneClient {
+			v.(*Client).SendToUserOp(data)
+		}
 	}
 }
 
@@ -94,7 +119,7 @@ func (r *Room) JoinClient(client *Client) {
 func (r *Room) onRoomChanged() {
 	r.SendToAllUserOp(&ClientMessage{
 		Op: ChangedRoom,
-	})
+	}, nil)
 }
 
 // 用户退出
