@@ -80,6 +80,24 @@ func (c *Client) onMessage(data []byte) {
 			} else {
 				c.SendError(GET_ROOM_ERROR, message.Op, "不存在房间信息")
 			}
+		case JoinRoom:
+			if c.room != nil {
+				c.SendError(JOIN_ROOM_ERROR, message.Op, "已存在房间，无法加入")
+			} else {
+				id := message.Data.(map[string]any)["id"]
+				util.Log("加入房间", id)
+				room, b := CurrentServer.JoinRoom(c, int(id.(float64)))
+				if b {
+					c.SendToUserOp(&ClientMessage{
+						Op: JoinRoom,
+						Data: map[string]any{
+							"id": room.id,
+						}},
+					)
+				} else {
+					c.SendError(JOIN_ROOM_ERROR, message.Op, "无法加入该房间")
+				}
+			}
 		case StartFrameSync:
 			// 开始帧同步
 			if c.room != nil {

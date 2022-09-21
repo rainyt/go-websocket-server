@@ -42,11 +42,12 @@ func (s *Server) CreateRoom(user *Client) *Room {
 	interval := 1. / 30.
 	interval = float64(time.Second) * interval
 	room := Room{
-		id:       s.create_uid,
-		master:   user,
-		interval: time.Duration(interval),
+		id:        s.create_uid,
+		master:    user,
+		interval:  time.Duration(interval),
+		maxCounts: 10,
 	}
-	s.rooms.Push(room)
+	s.rooms.Push(&room)
 	room.JoinClient(user)
 	return &room
 }
@@ -69,6 +70,10 @@ func (s *Server) JoinRoom(user *Client, roomid int) (*Room, bool) {
 // 退出房间
 func (s *Server) ExitRoom(c *Client) {
 	if c.room != nil {
+		room := c.room
 		c.room.ExitClient(c)
+		if room.users.Length() == 0 {
+			s.rooms.Remove(room)
+		}
 	}
 }

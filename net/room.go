@@ -14,6 +14,7 @@ type Room struct {
 	lock       bool          // 房间是否锁定（如果游戏已经开始，则会锁定房间，直到游戏结束，如果用户离线，不会立即退出房间，需要通过`ExitRoom`才能退出房间）
 	frameDatas []any         // 房间帧数据
 	cacheId    int           // 房间已缓存的时间轴Id
+	maxCounts  int           // 房间最大容纳人数
 }
 
 // 是否为无效房间
@@ -33,6 +34,10 @@ func onRoomFrame(r *Room) {
 		if !r.frameSync || r.isInvalidRoom() {
 			// 帧同步停止，或者房间已经不存在用户时
 			util.Log("房间停止帧同步")
+			// 并将所有用户移除
+			for _, v := range r.users.List {
+				CurrentServer.ExitRoom(v.(*Client))
+			}
 			break
 		}
 		frameData := map[int][]any{}

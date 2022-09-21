@@ -52,6 +52,7 @@ const (
 	LOGIN_OUT_ERROR        ClientErrorCode = 1007 // 在别处登陆事件
 	OP_ERROR               ClientErrorCode = 1008 // 无效的操作指令
 	SEND_ROOM_ERROR        ClientErrorCode = 1009 // 发送房间消息错误
+	JOIN_ROOM_ERROR        ClientErrorCode = 1010 // 加入房间错误
 )
 
 type Opcode int
@@ -393,7 +394,7 @@ func clientHandle(c *Client) {
 }
 
 // 创建客户端对象
-func CreateClient(c net.Conn) Client {
+func CreateClient(c net.Conn) *Client {
 	util.Log("Join user", c.RemoteAddr().String())
 	client := Client{
 		Conn:      c,
@@ -404,5 +405,5 @@ func CreateClient(c net.Conn) Client {
 		online:    true,
 	}
 	go clientHandle(&client)
-	return client
+	return &client
 }
