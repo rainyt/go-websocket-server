@@ -15,18 +15,21 @@ import (
 type ClientAction int
 
 const (
-	Error          ClientAction = -1 // 通用错误，发生错误时，Data请传递`ClientError`结构体
-	Message        ClientAction = 0  // 普通消息
-	CreateRoom     ClientAction = 1  // 创建房间
-	JoinRoom       ClientAction = 2  // 加入房间
-	ChangedRoom    ClientAction = 3  // 房间信息变更
-	GetRoomMessage ClientAction = 4  // 获取房间信息
-	StartFrameSync ClientAction = 5  // 开启帧同步
-	StopFrameSync  ClientAction = 6  // 停止帧同步
-	UploadFrame    ClientAction = 7  // 上传帧同步数据
-	Login          ClientAction = 8  // 登陆用户
-	FData          ClientAction = 9  // 帧数据
-	RoomMessage    ClientAction = 10 // 发送房间消息
+	Error               ClientAction = -1 // 通用错误，发生错误时，Data请传递`ClientError`结构体
+	Message             ClientAction = 0  // 普通消息
+	CreateRoom          ClientAction = 1  // 创建房间
+	JoinRoom            ClientAction = 2  // 加入房间
+	ChangedRoom         ClientAction = 3  // 房间信息变更
+	GetRoomMessage      ClientAction = 4  // 获取房间信息
+	StartFrameSync      ClientAction = 5  // 开启帧同步
+	StopFrameSync       ClientAction = 6  // 停止帧同步
+	UploadFrame         ClientAction = 7  // 上传帧同步数据
+	Login               ClientAction = 8  // 登陆用户
+	FData               ClientAction = 9  // 帧数据
+	RoomMessage         ClientAction = 10 // 发送房间消息
+	JoinRoomClient      ClientAction = 11 // 加入房间的客户端信息
+	ExitRoomClient      ClientAction = 12 // 退出房间的客户端信息
+	OutOnlineRoomClient ClientAction = 13 // 在房间中离线的客户端信息，请注意，只有开启了帧同步的情况下收到
 )
 
 type ClientMessage struct {
@@ -307,8 +310,16 @@ func (c *Client) onUserOut() {
 		util.Log("用户退出")
 		c.online = false
 		// 如果房间存在，而且房间没有锁定时，离线则可以直接退出房间
-		if c.room != nil && !c.room.lock {
-			CurrentServer.ExitRoom(c)
+		if c.room != nil {
+			if !c.room.lock {
+				CurrentServer.ExitRoom(c)
+			} else {
+				// 离线状态
+				c.room.SendToAllUserOp(&ClientMessage{
+					Op:   OutOnlineRoomClient,
+					Data: c.GetUserData(),
+				}, c)
+			}
 		}
 		// 从服务器列表中删除
 		CurrentServer.users.Remove(c)

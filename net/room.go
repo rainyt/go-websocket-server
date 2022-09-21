@@ -116,6 +116,11 @@ func (r *Room) JoinClient(client *Client) {
 			Op:   GetRoomMessage,
 			Data: r.GetRoomData(),
 		})
+		// 同步新来用户信息
+		r.SendToAllUserOp(&ClientMessage{
+			Op:   JoinRoomClient,
+			Data: client.GetUserData(),
+		}, client)
 		// 其他用户通知房间更新
 		r.onRoomChanged()
 	}
@@ -141,6 +146,11 @@ func (r *Room) ExitClient(client *Client) {
 				if r.master == client {
 					r.master = r.users.List[0].(*Client)
 				}
+				// 同步退出用户信息
+				r.SendToAllUserOp(&ClientMessage{
+					Op:   ExitRoomClient,
+					Data: client.GetUserData(),
+				}, client)
 				// 通知更新房间信息
 				r.onRoomChanged()
 			}
