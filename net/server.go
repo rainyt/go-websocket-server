@@ -61,6 +61,9 @@ func (s *Server) JoinRoom(user *Client, roomid int) (*Room, bool) {
 	for _, v := range s.rooms.List {
 		room := v.(*Room)
 		if room.id == roomid {
+			if room.users.Length() < room.maxCounts {
+				room.JoinClient(user)
+			}
 			return room, true
 		}
 	}
