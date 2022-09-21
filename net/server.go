@@ -17,10 +17,10 @@ type Server struct {
 }
 
 // 开始侦听服务器
-func (s *Server) Listen(port int) {
+func (s *Server) Listen(ip string, port int) {
 	CurrentServer = s
-	fmt.Println("Server start:127.0.0.1:" + fmt.Sprint(port))
-	n, e := net.Listen("tcp", ":"+fmt.Sprint(port))
+	fmt.Println("Server start:" + ip + ":" + fmt.Sprint(port))
+	n, e := net.Listen("tcp", ip+":"+fmt.Sprint(port))
 	if e != nil {
 		fmt.Println(e.Error())
 	}

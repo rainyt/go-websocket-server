@@ -20,7 +20,7 @@ type Room struct {
 func (r *Room) isInvalidRoom() bool {
 	hasOnline := false
 	for _, v := range r.users.List {
-		if v.(Client).online {
+		if v.(*Client).online {
 			hasOnline = true
 		}
 	}

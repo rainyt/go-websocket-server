@@ -17,7 +17,6 @@ func (c *Client) onMessage(data []byte) {
 		content := data[1:]
 		message.Op = op
 		err = json.Unmarshal(content, &message.Data)
-		util.Log("二进制数据处理", "op=", op, string(content))
 	} else {
 		err = json.Unmarshal(data, &message)
 	}
@@ -104,23 +103,14 @@ func (c *Client) onMessage(data []byte) {
 		case UploadFrame:
 			if c.room != nil && c.room.frameSync {
 				// 缓存到用户数据中
-				mapdata, err := message.Data.(map[string]any)
 				fdata := FrameData{
-					Time: int64(mapdata["Time"].(float64)),
-					Data: mapdata["Data"],
+					Time: 0,
+					Data: message.Data,
 				}
-				util.Log("帧同步数据：", fdata, err)
-				if err {
-					// 验证是否操作数据是否已无效
-					if !isInvalidData(&fdata) {
-						c.frames.Push(fdata)
-						c.SendToUserOp(&ClientMessage{
-							Op: UploadFrame,
-						})
-					} else {
-						c.SendError(UPLOAD_FRAME_ERROR, "上传帧数据时间戳错误")
-					}
-				}
+				c.frames.Push(fdata)
+				c.SendToUserOp(&ClientMessage{
+					Op: UploadFrame,
+				})
 			} else {
 				c.SendError(UPLOAD_FRAME_ERROR, "上传帧同步数据错误")
 			}

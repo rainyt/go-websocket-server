@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"strconv"
 	"websocket_server/net"
 	"websocket_server/util"
 )
@@ -8,5 +11,18 @@ import (
 func main() {
 	util.EnableLog = true
 	s := net.Server{}
-	s.Listen(8888)
+	fmt.Println("启动参数", os.Args)
+	argsLen := len(os.Args)
+	if argsLen == 2 {
+		ip := "127.0.0.1"
+		port, _ := strconv.Atoi(os.Args[1])
+		s.Listen(ip, port)
+	} else if argsLen == 3 {
+		ip := os.Args[1]
+		port, _ := strconv.Atoi(os.Args[2])
+		s.Listen(ip, port)
+	} else {
+		panic("至少提供一个IP以及端口，参考命令：command 127.0.0.1 8888")
+	}
+
 }
