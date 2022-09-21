@@ -30,7 +30,7 @@ func (c *Client) onMessage(data []byte) {
 					userName := loginData["username"]
 					openId := loginData["openid"]
 					if userName == nil || openId == nil {
-						c.SendError(LOGIN_ERROR, "需要提供openid和username")
+						c.SendError(LOGIN_ERROR, message.Op, "需要提供openid和username")
 						return
 					}
 					// 只需要用户名和OpenId即可登陆
@@ -43,10 +43,10 @@ func (c *Client) onMessage(data []byte) {
 						},
 					})
 				} else {
-					c.SendError(LOGIN_ERROR, "已登陆")
+					c.SendError(LOGIN_ERROR, message.Op, "已登陆")
 				}
 			default:
-				c.SendError(OP_ERROR, "无效的操作指令："+fmt.Sprint(message.Op))
+				c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 			}
 			return
 		}
@@ -68,7 +68,7 @@ func (c *Client) onMessage(data []byte) {
 				})
 			} else {
 				// 创建失败
-				c.SendError(CREATE_ROOM_ERROR, "房间已存在，无法创建")
+				c.SendError(CREATE_ROOM_ERROR, message.Op, "房间已存在，无法创建")
 			}
 		case GetRoomMessage:
 			// 获取房间信息
@@ -78,7 +78,7 @@ func (c *Client) onMessage(data []byte) {
 					Data: c.room.GetRoomData(),
 				})
 			} else {
-				c.SendError(GET_ROOM_ERROR, "不存在房间信息")
+				c.SendError(GET_ROOM_ERROR, message.Op, "不存在房间信息")
 			}
 		case StartFrameSync:
 			// 开始帧同步
@@ -88,7 +88,7 @@ func (c *Client) onMessage(data []byte) {
 					Op: StartFrameSync,
 				})
 			} else {
-				c.SendError(START_FRAME_SYNC_ERROR, "房间不存在，无法启动帧同步")
+				c.SendError(START_FRAME_SYNC_ERROR, message.Op, "房间不存在，无法启动帧同步")
 			}
 		case StopFrameSync:
 			// 开始停止帧同步
@@ -98,7 +98,7 @@ func (c *Client) onMessage(data []byte) {
 					Op: StopFrameSync,
 				})
 			} else {
-				c.SendError(STOP_FRAME_SYNC_ERROR, "房间不存在，无法停止帧同步")
+				c.SendError(STOP_FRAME_SYNC_ERROR, message.Op, "房间不存在，无法停止帧同步")
 			}
 		case UploadFrame:
 			if c.room != nil && c.room.frameSync {
@@ -112,7 +112,7 @@ func (c *Client) onMessage(data []byte) {
 					Op: UploadFrame,
 				})
 			} else {
-				c.SendError(UPLOAD_FRAME_ERROR, "上传帧同步数据错误")
+				c.SendError(UPLOAD_FRAME_ERROR, message.Op, "上传帧同步数据错误")
 			}
 		case RoomMessage:
 			// 转发房间信息
@@ -122,10 +122,10 @@ func (c *Client) onMessage(data []byte) {
 					Op: RoomMessage,
 				})
 			} else {
-				c.SendError(SEND_ROOM_ERROR, "房间不存在")
+				c.SendError(SEND_ROOM_ERROR, message.Op, "房间不存在")
 			}
 		default:
-			c.SendError(OP_ERROR, "无效的操作指令："+fmt.Sprint(message.Op))
+			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}
 	} else {
 		fmt.Println("处理命令失败", string(data), err.Error())

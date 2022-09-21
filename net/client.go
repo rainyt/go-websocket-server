@@ -35,8 +35,9 @@ type ClientMessage struct {
 }
 
 type ClientError struct {
-	Code ClientErrorCode
-	Msg  string
+	Code ClientErrorCode // 错误码
+	Op   ClientAction    // 错误操作
+	Msg  string          // 错误信息
 }
 
 type ClientErrorCode int
@@ -313,11 +314,12 @@ func (c *Client) onUserOut() {
 	}
 }
 
-func (c *Client) SendError(errCode ClientErrorCode, data string) {
+func (c *Client) SendError(errCode ClientErrorCode, op ClientAction, data string) {
 	c.SendToUserOp(&ClientMessage{
 		Op: Error,
 		Data: ClientError{
 			Code: errCode,
+			Op:   op,
 			Msg:  data,
 		},
 	})

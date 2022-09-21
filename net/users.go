@@ -31,7 +31,7 @@ func (u *UserDataSQL) login(c *Client, openId string, userName string) *Register
 				util.Log("该用户仍然在房间中，加入房间")
 			}
 			util.Log("掉线处理")
-			user.client.SendError(LOGIN_OUT_ERROR, "用户已在其他地方登录")
+			user.client.SendError(LOGIN_OUT_ERROR, Login, "用户已在其他地方登录")
 			user.client.Close()
 		}
 	} else {

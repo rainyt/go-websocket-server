@@ -14,7 +14,7 @@ func main() {
 	fmt.Println("启动参数", os.Args)
 	argsLen := len(os.Args)
 	if argsLen == 2 {
-		ip := "127.0.0.1"
+		ip := "0.0.0.0"
 		port, _ := strconv.Atoi(os.Args[1])
 		s.Listen(ip, port)
 	} else if argsLen == 3 {
