@@ -98,6 +98,15 @@ func (c *Client) onMessage(data []byte) {
 					c.SendError(JOIN_ROOM_ERROR, message.Op, "无法加入该房间")
 				}
 			}
+		case ExitRoom:
+			if c.room != nil {
+				c.room.ExitClient(c)
+				c.SendToUserOp(&ClientMessage{
+					Op: ExitRoom,
+				})
+			} else {
+				c.SendError(EXIT_ROOM_ERROR, message.Op, "退出房间失败")
+			}
 		case StartFrameSync:
 			// 开始帧同步
 			if c.room != nil {

@@ -30,6 +30,7 @@ const (
 	JoinRoomClient      ClientAction = 11 // 加入房间的客户端信息
 	ExitRoomClient      ClientAction = 12 // 退出房间的客户端信息
 	OutOnlineRoomClient ClientAction = 13 // 在房间中离线的客户端信息，请注意，只有开启了帧同步的情况下收到
+	ExitRoom            ClientAction = 14 // 退出房间
 )
 
 type ClientMessage struct {
@@ -56,6 +57,7 @@ const (
 	OP_ERROR               ClientErrorCode = 1008 // 无效的操作指令
 	SEND_ROOM_ERROR        ClientErrorCode = 1009 // 发送房间消息错误
 	JOIN_ROOM_ERROR        ClientErrorCode = 1010 // 加入房间错误
+	EXIT_ROOM_ERROR        ClientErrorCode = 1011 // 退出房间错误
 )
 
 type Opcode int
