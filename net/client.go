@@ -4,9 +4,11 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
+	"runtime"
 	"strings"
 	"time"
 	"websocket_server/util"
@@ -35,14 +37,14 @@ const (
 )
 
 type ClientMessage struct {
-	Op   ClientAction
-	Data any
+	Op   ClientAction `json:"op"`
+	Data any          `json:"data"`
 }
 
 type ClientError struct {
-	Code ClientErrorCode // 错误码
-	Op   ClientAction    // 错误操作
-	Msg  string          // 错误信息
+	Code ClientErrorCode `json:"code"` // 错误码
+	Op   ClientAction    `json:"op"`   // 错误操作
+	Msg  string          `json:"msg"`  // 错误信息
 }
 
 type ClientErrorCode int
@@ -329,6 +331,8 @@ func (c *Client) onUserOut() {
 		CurrentServer.users.Remove(c)
 		// 从服务器匹配列表中取消
 		CurrentServer.matchs.cannelMatchUser(c)
+		//
+		fmt.Println("Server.NumGoroutine=" + fmt.Sprint(runtime.NumGoroutine()))
 	}
 }
 

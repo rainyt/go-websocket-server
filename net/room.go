@@ -169,5 +169,6 @@ func (r *Room) GetRoomData() any {
 		users.Push(v.(*Client).GetUserData())
 	}
 	data["users"] = users
+	data["max"] = r.maxCounts
 	return data
 }
