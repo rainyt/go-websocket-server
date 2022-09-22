@@ -31,6 +31,7 @@ const (
 	ExitRoomClient      ClientAction = 12 // 退出房间的客户端信息
 	OutOnlineRoomClient ClientAction = 13 // 在房间中离线的客户端信息，请注意，只有开启了帧同步的情况下收到
 	ExitRoom            ClientAction = 14 // 退出房间
+	MatchUser           ClientAction = 15 // 匹配用户
 )
 
 type ClientMessage struct {
@@ -58,6 +59,7 @@ const (
 	SEND_ROOM_ERROR        ClientErrorCode = 1009 // 发送房间消息错误
 	JOIN_ROOM_ERROR        ClientErrorCode = 1010 // 加入房间错误
 	EXIT_ROOM_ERROR        ClientErrorCode = 1011 // 退出房间错误
+	MATCH_ERROR            ClientErrorCode = 1012 // 匹配错误
 )
 
 type Opcode int
@@ -85,7 +87,7 @@ type Client struct {
 	net.Conn
 	websocket     bool           // 是否使用webscoket协议
 	handshakeData string         // 握手信息
-	data          util.Bytes     // 缓存数据
+	data          *util.Bytes    // 缓存数据
 	isFinal       bool           // 是否最终包
 	opcode        Opcode         // 操作符
 	frameIsBinary bool           // 是否二进制数据
@@ -325,6 +327,8 @@ func (c *Client) onUserOut() {
 		}
 		// 从服务器列表中删除
 		CurrentServer.users.Remove(c)
+		// 从服务器匹配列表中取消
+		CurrentServer.matchs.cannelMatchUser(c)
 	}
 }
 
@@ -412,7 +416,7 @@ func CreateClient(c net.Conn) *Client {
 	client := Client{
 		Conn:      c,
 		websocket: true,
-		data:      util.Bytes{Data: []byte{}},
+		data:      &util.Bytes{Data: []byte{}},
 		state:     Handshake,
 		userData:  map[string]any{},
 		online:    true,

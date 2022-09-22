@@ -8,13 +8,14 @@ import (
 type Room struct {
 	id         int
 	master     *Client       // 房主
-	users      util.Array    // 房间用户
+	users      *util.Array   // 房间用户
 	frameSync  bool          // 是否开启帧同步
 	interval   time.Duration // 帧同步的间隔
 	lock       bool          // 房间是否锁定（如果游戏已经开始，则会锁定房间，直到游戏结束，如果用户离线，不会立即退出房间，需要通过`ExitRoom`才能退出房间）
 	frameDatas []any         // 房间帧数据
 	cacheId    int           // 房间已缓存的时间轴Id
 	maxCounts  int           // 房间最大容纳人数
+	password   string        // 房间密码，加入房间时，需要验证密码
 }
 
 // 是否为无效房间

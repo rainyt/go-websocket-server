@@ -56,7 +56,7 @@ func (c *Client) onMessage(data []byte) {
 			fmt.Println("服务器接收到消息：", message.Data)
 		case CreateRoom:
 			// 创建一个房间
-			room := CurrentServer.CreateRoom(c)
+			room := CurrentServer.CreateRoom(c, CreateRoomOption{})
 			util.Log("开始创建房间", room)
 			if room != nil {
 				// 创建成功
@@ -151,6 +151,13 @@ func (c *Client) onMessage(data []byte) {
 			} else {
 				c.SendError(SEND_ROOM_ERROR, message.Op, "房间不存在")
 			}
+		case MatchUser:
+			// 匹配用户
+			b := CurrentServer.matchs.matchUser(c)
+			if !b {
+				c.SendError(MATCH_ERROR, message.Op, "已在匹配列表中")
+			}
+
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}
