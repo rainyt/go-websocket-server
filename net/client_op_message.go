@@ -223,6 +223,27 @@ func (c *Client) onMessage(data []byte) {
 					c.SendError(ROOM_PERMISSION_DENIED, message.Op, "需要房主操作")
 				}
 			}
+		case KickOut:
+			// 踢人流程
+			if c.room == nil {
+				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
+			} else {
+				if c.room.master == c {
+					m, b := message.Data.(map[string]any)
+					if b {
+						uid := util.GetMapValueToInt(m, "uid")
+						if uid == c.room.master.uid {
+							c.SendError(ROOM_PERMISSION_DENIED, message.Op, "无法踢出房主")
+						} else {
+							c.room.kickOut(uid)
+						}
+					} else {
+						c.SendError(DATA_ERROR, message.Op, "数据结构错误")
+					}
+				} else {
+					c.SendError(ROOM_PERMISSION_DENIED, message.Op, "需要房主操作")
+				}
+			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}

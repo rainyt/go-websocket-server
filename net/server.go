@@ -80,7 +80,8 @@ func (s *Server) JoinRoom(user *Client, roomid int, password string) (*Room, boo
 	for _, v := range s.rooms.List {
 		room := v.(*Room)
 		if room.id == roomid {
-			if room.users.Length() < room.option.maxCounts && room.option.password == password {
+			// 要处于非锁定、人数足够、密码验证通过才能加入
+			if !room.lock && room.users.Length() < room.option.maxCounts && room.option.password == password {
 				room.JoinClient(user)
 			} else {
 				return nil, false

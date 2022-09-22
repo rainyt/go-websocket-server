@@ -61,6 +61,22 @@ func (r *Room) isInvalidRoom() bool {
 	return r.users.Length() == 0 || !hasOnline
 }
 
+// 将玩家踢出房间
+func (r *Room) kickOut(uid int) {
+	for _, v := range r.users.List {
+		c := v.(*Client)
+		if c.uid == uid {
+			r.ExitClient(c)
+			// 发送踢出房间的事件
+			c.SendToUserOp(&ClientMessage{
+				Op: SelfKickOut,
+			})
+			r.onRoomChanged()
+			break
+		}
+	}
+}
+
 // 房间的帧同步实现
 func onRoomFrame(r *Room) {
 	for {

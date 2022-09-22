@@ -36,8 +36,10 @@ const (
 	MatchUser            ClientAction = 15 // 匹配用户
 	UpdateUserData       ClientAction = 16 // 更新用户数据
 	GetRoomOldMessage    ClientAction = 17 // 获取房间的历史消息
-	UpdateRoomCustomData ClientAction = 18 // 更新自定义房间信息
-	UpdateRoomOption     ClientAction = 19 // 更新房间的配置，如人数、密码等
+	UpdateRoomCustomData ClientAction = 18 // 更新自定义房间信息（房主操作）
+	UpdateRoomOption     ClientAction = 19 // 更新房间的配置，如人数、密码等（房主操作）
+	KickOut              ClientAction = 20 // 踢出用户（房主操作）
+	SelfKickOut          ClientAction = 21 // 自已被踢出房间
 )
 
 type ClientMessage struct {
