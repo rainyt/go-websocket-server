@@ -56,7 +56,7 @@ func (c *Client) onMessage(data []byte) {
 			fmt.Println("服务器接收到消息：", message.Data)
 		case CreateRoom:
 			// 创建一个房间
-			room := CurrentServer.CreateRoom(c, CreateRoomOption{})
+			room := CurrentServer.CreateRoom(c, RoomConfigOption{})
 			util.Log("开始创建房间", room)
 			if room != nil {
 				// 创建成功
@@ -84,9 +84,9 @@ func (c *Client) onMessage(data []byte) {
 			if c.room != nil {
 				c.SendError(JOIN_ROOM_ERROR, message.Op, "已存在房间，无法加入")
 			} else {
-				id := message.Data.(map[string]any)["id"]
-				util.Log("加入房间", id)
-				room, b := CurrentServer.JoinRoom(c, int(id.(float64)))
+				id := util.GetMapValueToInt(message.Data, "id")
+				password := util.GetMapValueToString(message.Data, "password")
+				room, b := CurrentServer.JoinRoom(c, id, password)
 				if b {
 					c.SendToUserOp(&ClientMessage{
 						Op: JoinRoom,
@@ -186,16 +186,39 @@ func (c *Client) onMessage(data []byte) {
 				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
 			}
 		case UpdateRoomCustomData:
-			// 更新房间信息，房主操作
+			// 更新房间自定义信息，房主操作
 			if c.room == nil {
 				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
 			} else {
 				if c.room.master == c {
 					c.room.updateCustomData(message.Data)
 					c.SendToUserOp(&ClientMessage{
-						Op:   UpdateRoomCustomData,
-						Data: c.room.GetRoomData(),
+						Op: UpdateRoomCustomData,
 					})
+					c.room.onRoomChanged()
+				} else {
+					c.SendError(ROOM_PERMISSION_DENIED, message.Op, "需要房主操作")
+				}
+			}
+		case UpdateRoomOption:
+			// 更新房间的固定信息，人数、密码等
+			if c.room == nil {
+				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
+			} else {
+				if c.room.master == c {
+					m, b := message.Data.(map[string]any)
+					if b {
+						c.room.updateRoomData(RoomConfigOption{
+							maxCounts: util.GetMapValueToInt(m, "maxCounts"),
+							password:  util.GetMapValueToString(m, "password"),
+						})
+						c.SendToUserOp(&ClientMessage{
+							Op: UpdateRoomOption,
+						})
+						c.room.onRoomChanged()
+					} else {
+						c.SendError(DATA_ERROR, message.Op, "数据结构错误")
+					}
 				} else {
 					c.SendError(ROOM_PERMISSION_DENIED, message.Op, "需要房主操作")
 				}

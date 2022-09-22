@@ -37,6 +37,7 @@ const (
 	UpdateUserData       ClientAction = 16 // 更新用户数据
 	GetRoomOldMessage    ClientAction = 17 // 获取房间的历史消息
 	UpdateRoomCustomData ClientAction = 18 // 更新自定义房间信息
+	UpdateRoomOption     ClientAction = 19 // 更新房间的配置，如人数、密码等
 )
 
 type ClientMessage struct {
@@ -68,6 +69,7 @@ const (
 	UPDATE_USER_ERROR      ClientErrorCode = 1013 // 更新用户数据错误
 	ROOM_NOT_EXSIT         ClientErrorCode = 1014 // 房间不存在
 	ROOM_PERMISSION_DENIED ClientErrorCode = 1015 // 房间权限不足
+	DATA_ERROR             ClientErrorCode = 1016 // 数据结果错误
 )
 
 type Opcode int

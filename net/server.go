@@ -39,13 +39,8 @@ func (s *Server) Listen(ip string, port int) {
 	}
 }
 
-type CreateRoomOption struct {
-	maxCounts int    // 房间最大人数，默认10个，最多10个
-	password  string // 房间密码
-}
-
 // 创建房间
-func (s *Server) CreateRoom(user *Client, option CreateRoomOption) *Room {
+func (s *Server) CreateRoom(user *Client, option RoomConfigOption) *Room {
 	if user.room != nil {
 		return nil
 	}
@@ -62,8 +57,7 @@ func (s *Server) CreateRoom(user *Client, option CreateRoomOption) *Room {
 		id:        s.create_uid,
 		master:    user,
 		interval:  time.Duration(interval),
-		maxCounts: option.maxCounts,
-		password:  option.password,
+		option:    option,
 		users:     util.CreateArray(),
 		oldMsgs:   util.CreateArray(),
 		userState: map[int]*ClientState{},
@@ -78,7 +72,7 @@ func (s *Server) CreateRoom(user *Client, option CreateRoomOption) *Room {
 }
 
 // 加入房间
-func (s *Server) JoinRoom(user *Client, roomid int) (*Room, bool) {
+func (s *Server) JoinRoom(user *Client, roomid int, password string) (*Room, bool) {
 	// 如果用户已经在房间中，则无法继续加入
 	if user.room != nil {
 		return nil, false
@@ -86,8 +80,10 @@ func (s *Server) JoinRoom(user *Client, roomid int) (*Room, bool) {
 	for _, v := range s.rooms.List {
 		room := v.(*Room)
 		if room.id == roomid {
-			if room.users.Length() < room.maxCounts {
+			if room.users.Length() < room.option.maxCounts && room.option.password == password {
 				room.JoinClient(user)
+			} else {
+				return nil, false
 			}
 			return room, true
 		}
