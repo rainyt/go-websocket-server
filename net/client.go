@@ -43,6 +43,8 @@ const (
 	GetFrameAt           ClientAction = 22 // 获取指定帧范围的帧事件
 	SetRoomState         ClientAction = 23 // 设置房间状态数据
 	RoomStateUpdate      ClientAction = 24 // 房间状态更新
+	SetClientState       ClientAction = 25 // 设置用户状态
+	ClientStateUpdate    ClientAction = 26 // 用户状态发生变化
 )
 
 type ClientMessage struct {
