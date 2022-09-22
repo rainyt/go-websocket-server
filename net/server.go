@@ -66,6 +66,8 @@ func (s *Server) CreateRoom(user *Client, option CreateRoomOption) *Room {
 		password:  option.password,
 		users:     util.CreateArray(),
 		oldMsgs:   util.CreateArray(),
+		userState: map[int]*ClientState{},
+		roomState: &ClientState{},
 	}
 	s.rooms.Push(&room)
 	room.JoinClient(user)

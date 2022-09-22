@@ -5,18 +5,25 @@ import (
 	"websocket_server/util"
 )
 
+// 客户端的状态同步使用的数据结构
+type ClientState struct {
+	data map[string]any // 客户端状态同步的所用到的数据储存在这里
+}
+
 type Room struct {
 	id         int
-	master     *Client       // 房主
-	users      *util.Array   // 房间用户
-	frameSync  bool          // 是否开启帧同步
-	interval   time.Duration // 帧同步的间隔
-	lock       bool          // 房间是否锁定（如果游戏已经开始，则会锁定房间，直到游戏结束，如果用户离线，不会立即退出房间，需要通过`ExitRoom`才能退出房间）
-	frameDatas []any         // 房间帧数据
-	cacheId    int           // 房间已缓存的时间轴Id
-	maxCounts  int           // 房间最大容纳人数
-	password   string        // 房间密码，加入房间时，需要验证密码
-	oldMsgs    *util.Array   // 历史消息，会记录所有`RoomMessage`信息
+	master     *Client              // 房主
+	users      *util.Array          // 房间用户
+	roomState  *ClientState         // 房间端的状态栏同步（每个用户都可以共享修改的内容）
+	userState  map[int]*ClientState // 客户端状态数据同步
+	frameSync  bool                 // 是否开启帧同步
+	interval   time.Duration        // 帧同步的间隔
+	lock       bool                 // 房间是否锁定（如果游戏已经开始，则会锁定房间，直到游戏结束，如果用户离线，不会立即退出房间，需要通过`ExitRoom`才能退出房间）
+	frameDatas []any                // 房间帧数据
+	cacheId    int                  // 房间已缓存的时间轴Id
+	maxCounts  int                  // 房间最大容纳人数
+	password   string               // 房间密码，加入房间时，需要验证密码
+	oldMsgs    *util.Array          // 历史消息，会记录所有`RoomMessage`信息
 }
 
 // 是否为无效房间
