@@ -16,6 +16,7 @@ type Room struct {
 	cacheId    int           // 房间已缓存的时间轴Id
 	maxCounts  int           // 房间最大容纳人数
 	password   string        // 房间密码，加入房间时，需要验证密码
+	oldMsgs    *util.Array   // 历史消息，会记录所有`RoomMessage`信息
 }
 
 // 是否为无效房间
@@ -76,6 +77,15 @@ func onRoomFrame(r *Room) {
 	}
 }
 
+// 记录服务器的房间信息
+func (r *Room) recordRoomMessage(data ClientMessage) {
+	r.oldMsgs.Push(data)
+	// 超出时，把第一个删除
+	if r.oldMsgs.Length() > 200 {
+		r.oldMsgs.Remove(r.oldMsgs.List[0])
+	}
+}
+
 // 启动帧同步
 func (r *Room) StartFrameSync() {
 	if r.frameSync {
@@ -114,7 +124,7 @@ func (r *Room) JoinClient(client *Client) {
 		r.users.Push(client)
 		client.room = r
 		client.SendToUserOp(&ClientMessage{
-			Op:   GetRoomMessage,
+			Op:   GetRoomData,
 			Data: r.GetRoomData(),
 		})
 		// 同步新来用户信息

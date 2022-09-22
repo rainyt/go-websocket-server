@@ -70,11 +70,11 @@ func (c *Client) onMessage(data []byte) {
 				// 创建失败
 				c.SendError(CREATE_ROOM_ERROR, message.Op, "房间已存在，无法创建")
 			}
-		case GetRoomMessage:
+		case GetRoomData:
 			// 获取房间信息
 			if c.room != nil {
 				c.SendToUserOp(&ClientMessage{
-					Op:   GetRoomMessage,
+					Op:   GetRoomData,
 					Data: c.room.GetRoomData(),
 				})
 			} else {
@@ -144,6 +144,7 @@ func (c *Client) onMessage(data []byte) {
 		case RoomMessage:
 			// 转发房间信息
 			if c.room != nil {
+				c.room.recordRoomMessage(message)
 				c.room.SendToAllUserOp(&message, c)
 				c.SendToUserOp(&ClientMessage{
 					Op: RoomMessage,
@@ -157,7 +158,33 @@ func (c *Client) onMessage(data []byte) {
 			if !b {
 				c.SendError(MATCH_ERROR, message.Op, "已在匹配列表中")
 			}
-
+		case UpdateUserData:
+			// 更新用户信息
+			obj, bool := message.Data.(map[string]any)
+			if bool {
+				keys := make([]string, 0, len(obj))
+				for k := range obj {
+					keys = append(keys, k)
+				}
+				for _, v := range keys {
+					c.userData[v] = obj[v]
+				}
+				c.SendToUserOp(&ClientMessage{
+					Op: UpdateUserData,
+				})
+			} else {
+				c.SendError(UPDATE_USER_ERROR, message.Op, "无效的操作数据")
+			}
+		case GetRoomOldMessage:
+			// 获取房间的历史消息记录
+			if c.room != nil {
+				c.SendToUserOp(&ClientMessage{
+					Op:   GetRoomOldMessage,
+					Data: c.room.oldMsgs,
+				})
+			} else {
+				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
+			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}

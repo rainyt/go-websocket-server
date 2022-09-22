@@ -65,6 +65,7 @@ func (s *Server) CreateRoom(user *Client, option CreateRoomOption) *Room {
 		maxCounts: option.maxCounts,
 		password:  option.password,
 		users:     util.CreateArray(),
+		oldMsgs:   util.CreateArray(),
 	}
 	s.rooms.Push(&room)
 	room.JoinClient(user)

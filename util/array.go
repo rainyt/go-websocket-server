@@ -1,7 +1,7 @@
 package util
 
 type Array struct {
-	List []any
+	List []any `json:"list"`
 }
 
 func CreateArray() *Array {

@@ -22,7 +22,7 @@ const (
 	CreateRoom          ClientAction = 1  // 创建房间
 	JoinRoom            ClientAction = 2  // 加入房间
 	ChangedRoom         ClientAction = 3  // 房间信息变更
-	GetRoomMessage      ClientAction = 4  // 获取房间信息
+	GetRoomData         ClientAction = 4  // 获取房间信息
 	StartFrameSync      ClientAction = 5  // 开启帧同步
 	StopFrameSync       ClientAction = 6  // 停止帧同步
 	UploadFrame         ClientAction = 7  // 上传帧同步数据
@@ -34,6 +34,8 @@ const (
 	OutOnlineRoomClient ClientAction = 13 // 在房间中离线的客户端信息，请注意，只有开启了帧同步的情况下收到
 	ExitRoom            ClientAction = 14 // 退出房间
 	MatchUser           ClientAction = 15 // 匹配用户
+	UpdateUserData      ClientAction = 16 // 更新用户数据
+	GetRoomOldMessage   ClientAction = 17 // 获取房间的历史消息
 )
 
 type ClientMessage struct {
@@ -62,6 +64,8 @@ const (
 	JOIN_ROOM_ERROR        ClientErrorCode = 1010 // 加入房间错误
 	EXIT_ROOM_ERROR        ClientErrorCode = 1011 // 退出房间错误
 	MATCH_ERROR            ClientErrorCode = 1012 // 匹配错误
+	UPDATE_USER_ERROR      ClientErrorCode = 1013 // 更新用户数据错误
+	ROOM_NOT_EXSIT         ClientErrorCode = 1014 // 房间不存在
 )
 
 type Opcode int
