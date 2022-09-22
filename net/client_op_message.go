@@ -185,6 +185,21 @@ func (c *Client) onMessage(data []byte) {
 			} else {
 				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
 			}
+		case UpdateRoomCustomData:
+			// 更新房间信息，房主操作
+			if c.room == nil {
+				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
+			} else {
+				if c.room.master == c {
+					c.room.updateCustomData(message.Data)
+					c.SendToUserOp(&ClientMessage{
+						Op:   UpdateRoomCustomData,
+						Data: c.room.GetRoomData(),
+					})
+				} else {
+					c.SendError(ROOM_PERMISSION_DENIED, message.Op, "需要房主操作")
+				}
+			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}

@@ -1,5 +1,5 @@
 # go-websocket-server
-Golang编写的WebSocket服务器
+Golang编写的WebSocket服务器，用于提供通用的房间管理、帧同步、状态同步等实时对战支持。
 
 # 启动服务器
 ```shell

@@ -17,25 +17,26 @@ import (
 type ClientAction int
 
 const (
-	Error               ClientAction = -1 // 通用错误，发生错误时，Data请传递`ClientError`结构体
-	Message             ClientAction = 0  // 普通消息
-	CreateRoom          ClientAction = 1  // 创建房间
-	JoinRoom            ClientAction = 2  // 加入房间
-	ChangedRoom         ClientAction = 3  // 房间信息变更
-	GetRoomData         ClientAction = 4  // 获取房间信息
-	StartFrameSync      ClientAction = 5  // 开启帧同步
-	StopFrameSync       ClientAction = 6  // 停止帧同步
-	UploadFrame         ClientAction = 7  // 上传帧同步数据
-	Login               ClientAction = 8  // 登陆用户
-	FData               ClientAction = 9  // 帧数据
-	RoomMessage         ClientAction = 10 // 发送房间消息
-	JoinRoomClient      ClientAction = 11 // 加入房间的客户端信息
-	ExitRoomClient      ClientAction = 12 // 退出房间的客户端信息
-	OutOnlineRoomClient ClientAction = 13 // 在房间中离线的客户端信息，请注意，只有开启了帧同步的情况下收到
-	ExitRoom            ClientAction = 14 // 退出房间
-	MatchUser           ClientAction = 15 // 匹配用户
-	UpdateUserData      ClientAction = 16 // 更新用户数据
-	GetRoomOldMessage   ClientAction = 17 // 获取房间的历史消息
+	Error                ClientAction = -1 // 通用错误，发生错误时，Data请传递`ClientError`结构体
+	Message              ClientAction = 0  // 普通消息
+	CreateRoom           ClientAction = 1  // 创建房间
+	JoinRoom             ClientAction = 2  // 加入房间
+	ChangedRoom          ClientAction = 3  // 房间信息变更
+	GetRoomData          ClientAction = 4  // 获取房间信息
+	StartFrameSync       ClientAction = 5  // 开启帧同步
+	StopFrameSync        ClientAction = 6  // 停止帧同步
+	UploadFrame          ClientAction = 7  // 上传帧同步数据
+	Login                ClientAction = 8  // 登陆用户
+	FData                ClientAction = 9  // 帧数据
+	RoomMessage          ClientAction = 10 // 发送房间消息
+	JoinRoomClient       ClientAction = 11 // 加入房间的客户端信息
+	ExitRoomClient       ClientAction = 12 // 退出房间的客户端信息
+	OutOnlineRoomClient  ClientAction = 13 // 在房间中离线的客户端信息，请注意，只有开启了帧同步的情况下收到
+	ExitRoom             ClientAction = 14 // 退出房间
+	MatchUser            ClientAction = 15 // 匹配用户
+	UpdateUserData       ClientAction = 16 // 更新用户数据
+	GetRoomOldMessage    ClientAction = 17 // 获取房间的历史消息
+	UpdateRoomCustomData ClientAction = 18 // 更新自定义房间信息
 )
 
 type ClientMessage struct {
@@ -66,6 +67,7 @@ const (
 	MATCH_ERROR            ClientErrorCode = 1012 // 匹配错误
 	UPDATE_USER_ERROR      ClientErrorCode = 1013 // 更新用户数据错误
 	ROOM_NOT_EXSIT         ClientErrorCode = 1014 // 房间不存在
+	ROOM_PERMISSION_DENIED ClientErrorCode = 1015 // 房间权限不足
 )
 
 type Opcode int

@@ -23,7 +23,22 @@ type Room struct {
 	cacheId    int                  // 房间已缓存的时间轴Id
 	maxCounts  int                  // 房间最大容纳人数
 	password   string               // 房间密码，加入房间时，需要验证密码
+	customData map[string]any       // 房间自定义数据
 	oldMsgs    *util.Array          // 历史消息，会记录所有`RoomMessage`信息
+}
+
+// 更新自定义数据
+func (r *Room) updateCustomData(o any) {
+	obj, bool := o.(map[string]any)
+	if bool {
+		keys := make([]string, 0, len(obj))
+		for k := range obj {
+			keys = append(keys, k)
+		}
+		for _, v := range keys {
+			r.customData[v] = obj[v]
+		}
+	}
 }
 
 // 是否为无效房间
@@ -181,11 +196,13 @@ func (r *Room) GetRoomData() any {
 	data := map[string]any{}
 	data["id"] = r.id
 	data["master"] = r.master.GetUserData()
+	// 用户数据
 	users := util.Array{}
 	for _, v := range r.users.List {
 		users.Push(v.(*Client).GetUserData())
 	}
 	data["users"] = users
 	data["max"] = r.maxCounts
+	data["data"] = r.customData
 	return data
 }
