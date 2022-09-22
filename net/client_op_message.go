@@ -244,6 +244,26 @@ func (c *Client) onMessage(data []byte) {
 					c.SendError(ROOM_PERMISSION_DENIED, message.Op, "需要房主操作")
 				}
 			}
+		case GetFrameAt:
+			// 获取范围帧数据 Bate
+			if c.room == nil {
+				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
+			} else {
+				m, b := message.Data.(map[string]any)
+				if b {
+					start := util.GetMapValueToInt(m, "start")
+					end := util.GetMapValueToInt(m, "end")
+					if end == 0 {
+						end = len(c.room.frameDatas)
+					}
+					c.SendToUserOp(&ClientMessage{
+						Op:   GetFrameAt,
+						Data: c.room.frameDatas[start:end],
+					})
+				} else {
+					c.SendError(DATA_ERROR, message.Op, "数据结构错误")
+				}
+			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}

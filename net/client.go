@@ -40,6 +40,7 @@ const (
 	UpdateRoomOption     ClientAction = 19 // 更新房间的配置，如人数、密码等（房主操作）
 	KickOut              ClientAction = 20 // 踢出用户（房主操作）
 	SelfKickOut          ClientAction = 21 // 自已被踢出房间
+	GetFrameAt           ClientAction = 22 // 获取指定帧范围的帧事件
 )
 
 type ClientMessage struct {
