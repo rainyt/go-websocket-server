@@ -3,7 +3,7 @@ Golang编写的WebSocket服务器
 
 # 启动服务器
 ```shell
-go run ./main.n 8888
+go run ./main.go 8888
 ```
 
 # 已实现的功能
