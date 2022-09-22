@@ -59,15 +59,17 @@ func (s *Server) CreateRoom(user *Client, option CreateRoomOption) *Room {
 	}
 
 	room := Room{
-		id:         s.create_uid,
-		master:     user,
-		interval:   time.Duration(interval),
-		maxCounts:  option.maxCounts,
-		password:   option.password,
-		users:      util.CreateArray(),
-		oldMsgs:    util.CreateArray(),
-		userState:  map[int]*ClientState{},
-		roomState:  &ClientState{},
+		id:        s.create_uid,
+		master:    user,
+		interval:  time.Duration(interval),
+		maxCounts: option.maxCounts,
+		password:  option.password,
+		users:     util.CreateArray(),
+		oldMsgs:   util.CreateArray(),
+		userState: map[int]*ClientState{},
+		roomState: &ClientState{
+			data: map[string]any{},
+		},
 		customData: map[string]any{},
 	}
 	s.rooms.Push(&room)
