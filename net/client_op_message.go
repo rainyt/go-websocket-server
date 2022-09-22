@@ -264,6 +264,33 @@ func (c *Client) onMessage(data []byte) {
 					c.SendError(DATA_ERROR, message.Op, "数据结构错误")
 				}
 			}
+		case SetRoomState:
+			// 同步房间状态
+			if c.room == nil {
+				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
+			} else {
+				m, b := message.Data.(map[string]any)
+				if b {
+					keys := make([]string, 0, len(m))
+					for k := range m {
+						keys = append(keys, k)
+					}
+					for _, v := range keys {
+						c.room.roomState.data[v] = m[v]
+					}
+					// 需要把更改数据下发给其他的所有人
+					c.room.SendToAllUserOp(&ClientMessage{
+						Op:   RoomStateUpdate,
+						Data: m,
+					}, c)
+					// 通知更改成功
+					c.SendToUserOp(&ClientMessage{
+						Op: SetRoomState,
+					})
+				} else {
+					c.SendError(DATA_ERROR, message.Op, "数据结构错误")
+				}
+			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}

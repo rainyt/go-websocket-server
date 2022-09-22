@@ -41,6 +41,8 @@ const (
 	KickOut              ClientAction = 20 // 踢出用户（房主操作）
 	SelfKickOut          ClientAction = 21 // 自已被踢出房间
 	GetFrameAt           ClientAction = 22 // 获取指定帧范围的帧事件
+	SetRoomState         ClientAction = 23 // 设置房间状态数据
+	RoomStateUpdate      ClientAction = 24 // 房间状态更新
 )
 
 type ClientMessage struct {

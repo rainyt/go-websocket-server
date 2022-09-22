@@ -229,5 +229,7 @@ func (r *Room) GetRoomData() any {
 	data["users"] = users
 	data["max"] = r.option.maxCounts
 	data["data"] = r.customData
+	data["state"] = r.roomState.data
+	data["usersState"] = r.userState
 	return data
 }
