@@ -276,7 +276,7 @@ func (c *Client) onMessage(data []byte) {
 						keys = append(keys, k)
 					}
 					for _, v := range keys {
-						c.room.roomState.data[v] = m[v]
+						c.room.roomState.Data[v] = m[v]
 					}
 					// 需要把更改数据下发给其他的所有人
 					c.room.SendToAllUserOp(&ClientMessage{
@@ -302,13 +302,13 @@ func (c *Client) onMessage(data []byte) {
 						keys = append(keys, k)
 					}
 					u, e := c.room.userState[c.uid]
-					if !e {
+					if !e || u == nil {
 						u = &ClientState{
-							data: map[string]any{},
+							Data: map[string]any{},
 						}
 					}
 					for _, v := range keys {
-						u.data[v] = m[v]
+						u.Data[v] = m[v]
 					}
 					c.room.userState[c.uid] = u
 					// 需要把更改数据下发给其他的所有人
@@ -319,6 +319,7 @@ func (c *Client) onMessage(data []byte) {
 							"data": m,
 						},
 					}, c)
+					fmt.Println("最后更改状态：", c.uid, u)
 					// 通知更改成功
 					c.SendToUserOp(&ClientMessage{
 						Op: SetClientState,

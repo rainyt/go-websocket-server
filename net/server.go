@@ -46,8 +46,8 @@ func (s *Server) CreateRoom(user *Client, option RoomConfigOption) *Room {
 
 	create_uid := 1
 	for _, v := range s.rooms.List {
-		room := v.(Room)
-		if room.id > create_uid {
+		room := v.(*Room)
+		if room.id >= create_uid {
 			create_uid = room.id + 1
 		}
 	}
@@ -71,7 +71,7 @@ func (s *Server) CreateRoom(user *Client, option RoomConfigOption) *Room {
 		oldMsgs:   util.CreateArray(),
 		userState: map[int]*ClientState{},
 		roomState: &ClientState{
-			data: map[string]any{},
+			Data: map[string]any{},
 		},
 		customData: map[string]any{},
 	}

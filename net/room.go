@@ -7,7 +7,7 @@ import (
 
 // 客户端的状态同步使用的数据结构
 type ClientState struct {
-	data map[string]any // 客户端状态同步的所用到的数据储存在这里
+	Data map[string]any `json:"data"` // 客户端状态同步的所用到的数据储存在这里
 }
 
 // 房间可选参数
@@ -204,6 +204,8 @@ func (r *Room) ExitClient(client *Client) {
 				if r.master == client {
 					r.master = r.users.List[0].(*Client)
 				}
+				// 需要将状态清空
+				r.userState[client.uid] = nil
 				// 同步退出用户信息
 				r.SendToAllUserOp(&ClientMessage{
 					Op:   ExitRoomClient,
@@ -226,10 +228,10 @@ func (r *Room) GetRoomData() any {
 	for _, v := range r.users.List {
 		users.Push(v.(*Client).GetUserData())
 	}
-	data["users"] = users
+	data["users"] = users.List
 	data["max"] = r.option.maxCounts
 	data["data"] = r.customData
-	data["state"] = r.roomState.data
+	data["state"] = r.roomState.Data
 	data["usersState"] = r.userState
 	return data
 }
