@@ -45,6 +45,7 @@ const (
 	RoomStateUpdate      ClientAction = 24 // 房间状态更新
 	SetClientState       ClientAction = 25 // 设置用户状态
 	ClientStateUpdate    ClientAction = 26 // 用户状态发生变化
+	FrameSyncReady       ClientAction = 27 // 帧同步准备传输
 )
 
 type ClientMessage struct {

@@ -140,6 +140,10 @@ func (r *Room) StartFrameSync() {
 	}
 	r.frameSync = true
 	r.lock = true
+	// 所有人都要接收这个字节，确保帧同步启动
+	r.SendToAllUserOp(&ClientMessage{
+		Op: FrameSyncReady,
+	}, nil)
 	go onRoomFrame(r)
 }
 
