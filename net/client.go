@@ -122,6 +122,7 @@ type Client struct {
 	uid           int            // 用户ID
 	name          string         // 用户名称
 	online        bool           // 是否在线
+	matchOption   *MatchOption   // 房间匹配参数
 }
 
 // 发送数据给所有人

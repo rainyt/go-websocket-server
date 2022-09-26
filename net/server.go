@@ -66,7 +66,7 @@ func (s *Server) CreateRoom(user *Client, option RoomConfigOption) *Room {
 		id:        create_uid,
 		master:    user,
 		interval:  time.Duration(interval),
-		option:    option,
+		option:    &option,
 		users:     util.CreateArray(),
 		oldMsgs:   util.CreateArray(),
 		userState: map[int]*ClientState{},
