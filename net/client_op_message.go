@@ -61,6 +61,10 @@ func (c *Client) onMessage(data []byte) {
 			// 接收到消息
 			fmt.Println("服务器接收到消息：", message.Data)
 		case CreateRoom:
+			if c.matchOption != nil {
+				c.SendError(JOIN_ROOM_ERROR, message.Op, "正在匹配中")
+				return
+			}
 			// 创建一个房间
 			room := CurrentServer.CreateRoom(c, RoomConfigOption{})
 			util.Log("开始创建房间", room)
@@ -87,6 +91,10 @@ func (c *Client) onMessage(data []byte) {
 				c.SendError(GET_ROOM_ERROR, message.Op, "不存在房间信息")
 			}
 		case JoinRoom:
+			if c.matchOption != nil {
+				c.SendError(JOIN_ROOM_ERROR, message.Op, "正在匹配中")
+				return
+			}
 			if c.room != nil {
 				c.SendError(JOIN_ROOM_ERROR, message.Op, "已存在房间，无法加入")
 			} else {
@@ -159,10 +167,30 @@ func (c *Client) onMessage(data []byte) {
 				c.SendError(SEND_ROOM_ERROR, message.Op, "房间不存在")
 			}
 		case MatchUser:
+			if c.room != nil {
+				c.SendError(MATCH_ERROR, message.Op, "已在房间中，无法匹配")
+				return
+			}
 			// 匹配用户
-			b := CurrentServer.matchs.matchUser(c)
-			if !b {
-				c.SendError(MATCH_ERROR, message.Op, "已在匹配列表中")
+			num := util.GetMapValueToInt(message.Data, "number")
+			if num <= 1 {
+				c.SendError(MATCH_ERROR, message.Op, "提供的number参数必须大于2")
+				return
+			}
+			option := &MatchOption{}
+			b2 := util.SetJsonTo(&message.Data, option)
+			if b2 {
+				fmt.Println("匹配参数", option)
+				b := CurrentServer.matchs.matchUser(c, option)
+				if !b {
+					c.SendError(MATCH_ERROR, message.Op, "已在匹配列表中")
+				} else {
+					c.SendToUserOp(&ClientMessage{
+						Op: MatchUser,
+					})
+				}
+			} else {
+				c.SendError(MATCH_ERROR, message.Op, "匹配参数错误")
 			}
 		case UpdateUserData:
 			// 更新用户信息

@@ -20,7 +20,8 @@ type Server struct {
 func (s *Server) Listen(ip string, port int) {
 	CurrentServer = s
 	s.matchs = &Matchs{
-		matchUsers: util.CreateArray(),
+		matchUsers:      util.CreateArray(),
+		matchUsersGroup: util.CreateArray(),
 	}
 	s.users = util.CreateArray()
 	s.rooms = util.CreateArray()

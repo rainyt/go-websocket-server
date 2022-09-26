@@ -1,5 +1,7 @@
 package util
 
+import "encoding/json"
+
 func GetMapValueToInt(data any, key string) int {
 	pMap, pBool := data.(map[string]any)
 	if pBool {
@@ -32,4 +34,17 @@ func GetMapValueToString(data any, key string) string {
 	} else {
 		return ""
 	}
+}
+
+func SetJsonTo(data any, to any) bool {
+	j, b := json.Marshal(data)
+	if b == nil {
+		e := json.Unmarshal(j, &to)
+		if e == nil {
+			return true
+		} else {
+			return false
+		}
+	}
+	return false
 }

@@ -47,6 +47,7 @@ const (
 	ClientStateUpdate    ClientAction = 26 // 用户状态发生变化
 	FrameSyncReady       ClientAction = 27 // 帧同步准备传输
 	ResetRoom            ClientAction = 28 // 重置房间状态
+	Matched              ClientAction = 29 // 匹配成功，匹配成功后，可通过GetRoomData获取房间信息
 )
 
 type ClientMessage struct {
@@ -118,7 +119,7 @@ type Client struct {
 	lastPong      int64          // 上一次心跳时间
 	room          *Room          // 房间（每个用户只会进入到一个房间中）
 	userData      map[string]any // 用户自定义数据
-	frames        util.Array     // 用户帧同步缓存操作
+	frames        *util.Array    // 用户帧同步缓存操作
 	uid           int            // 用户ID
 	name          string         // 用户名称
 	online        bool           // 是否在线
@@ -346,12 +347,13 @@ func (c *Client) onUserOut() {
 			}
 		}
 		// 从服务器列表中删除
-		CurrentServer.users.Remove(c)
-		// 从服务器匹配列表中取消
-		CurrentServer.matchs.cannelMatchUser(c)
-		//
-		fmt.Println("Server.NumGoroutine=" + fmt.Sprint(runtime.NumGoroutine()))
 	}
+	CurrentServer.users.Remove(c)
+	// 从服务器匹配列表中取消
+	CurrentServer.matchs.cannelMatchUser(c)
+	//
+	fmt.Println("Server.NumGoroutine=" + fmt.Sprint(runtime.NumGoroutine()))
+
 }
 
 func (c *Client) SendError(errCode ClientErrorCode, op ClientAction, data string) {
