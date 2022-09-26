@@ -18,7 +18,7 @@ type Matchs struct {
 
 // 匹配的范围值
 type MatchRange struct {
-	Min int `json:"min`  // 最小值
+	Min int `json:"min"` // 最小值
 	Max int `json:"max"` // 最大值
 }
 
@@ -26,7 +26,7 @@ type MatchRange struct {
 type MatchOption struct {
 	Key    string                `json:"key"`    // 匹配key，字符串比较，当为一样的时候，则对匹配，如果为空字符串时，则忽略此匹配
 	Number int                   `json:"number"` // 匹配所需的总人数
-	Range  map[string]MatchRange `json:"range`   // 匹配参数的最小值，到最大值
+	Range  map[string]MatchRange `json:"range"`  // 匹配参数的最小值，到最大值
 }
 
 // 匹配用户
