@@ -1,6 +1,9 @@
 package util
 
+import "sync"
+
 type Array struct {
+	lock sync.Mutex
 	List []any `json:"list"`
 }
 
@@ -12,11 +15,15 @@ func CreateArray() *Array {
 
 // 添加数组
 func (a *Array) Push(o any) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	a.List = append(a.List, o)
 }
 
 // 从数组中删除
 func (a *Array) Remove(o any) bool {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	for i := 0; i < len(a.List); i++ {
 		if a.List[i] == o {
 			a.List = append(a.List[0:i], a.List[i+1:]...)

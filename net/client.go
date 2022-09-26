@@ -50,6 +50,7 @@ const (
 	Matched              ClientAction = 29 // 匹配成功，匹配成功后，可通过GetRoomData获取房间信息
 	LockRoom             ClientAction = 30 // 锁定房间
 	UnlockRoom           ClientAction = 31 // 取消锁定房间
+	MatchRoom            ClientAction = 32 // 匹配房间
 )
 
 type ClientMessage struct {

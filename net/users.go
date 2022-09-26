@@ -1,6 +1,11 @@
 package net
 
-import "websocket_server/util"
+import (
+	"sync"
+	"websocket_server/util"
+)
+
+var lock sync.Mutex
 
 type RegisterUserData struct {
 	uid      int
@@ -16,9 +21,8 @@ type UserDataSQL struct {
 
 // 登陆角色
 func (u *UserDataSQL) login(c *Client, openId string, userName string) *RegisterUserData {
-	if u.users == nil {
-		u.users = map[string]*RegisterUserData{}
-	}
+	lock.Lock()
+	defer lock.Unlock()
 	user, err := u.users[openId]
 	if err {
 		// 用户曾经登陆过，需要检测用户是否在线，否则会发生挤出的事件

@@ -3,6 +3,7 @@ package net
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"websocket_server/util"
 )
 
@@ -316,11 +317,11 @@ func (c *Client) onMessage(data []byte) {
 					start := util.GetMapValueToInt(m, "start")
 					end := util.GetMapValueToInt(m, "end")
 					if end == 0 {
-						end = len(c.room.frameDatas)
+						end = c.room.frameDatas.Length()
 					}
 					c.SendToUserOp(&ClientMessage{
 						Op:   GetFrameAt,
-						Data: c.room.frameDatas[start:end],
+						Data: c.room.frameDatas.List[start:end],
 					})
 				} else {
 					c.SendError(DATA_ERROR, message.Op, "数据结构错误")
@@ -338,7 +339,7 @@ func (c *Client) onMessage(data []byte) {
 						keys = append(keys, k)
 					}
 					for _, v := range keys {
-						c.room.roomState.Data[v] = m[v]
+						c.room.roomState.Data.Store(v, m[v])
 					}
 					// 需要把更改数据下发给其他的所有人
 					c.room.SendToAllUserOp(&ClientMessage{
@@ -366,11 +367,11 @@ func (c *Client) onMessage(data []byte) {
 					u, e := c.room.userState[c.uid]
 					if !e || u == nil {
 						u = &ClientState{
-							Data: map[string]any{},
+							Data: sync.Map{},
 						}
 					}
 					for _, v := range keys {
-						u.Data[v] = m[v]
+						u.Data.Store(v, m[v])
 					}
 					c.room.userState[c.uid] = u
 					// 需要把更改数据下发给其他的所有人
@@ -397,10 +398,10 @@ func (c *Client) onMessage(data []byte) {
 			} else {
 				// 停止帧同步，同时清空帧缓存
 				c.room.StopFrameSync()
-				c.room.frameDatas = []any{}
+				c.room.frameDatas = util.CreateArray()
 				// 重置房间状态
 				c.room.roomState = &ClientState{
-					Data: map[string]any{},
+					Data: sync.Map{},
 				}
 				// 重置用户状态
 				c.room.userState = map[int]*ClientState{}
