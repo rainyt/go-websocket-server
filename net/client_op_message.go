@@ -22,7 +22,7 @@ func (c *Client) onMessage(data []byte) {
 	}
 	if err == nil {
 		fmt.Println("处理命令", message)
-		if c.uid == 0 {
+		if c.uid == 0 || message.Op == Login {
 			switch message.Op {
 			case Login:
 				if c.uid == 0 {
@@ -43,7 +43,13 @@ func (c *Client) onMessage(data []byte) {
 						},
 					})
 				} else {
-					c.SendError(LOGIN_ERROR, message.Op, "已登陆")
+					c.SendToUserOp(&ClientMessage{
+						Op: Login,
+						Data: map[string]any{
+							"uid": c.uid,
+						},
+					})
+					// c.SendError(LOGIN_ERROR, message.Op, "已登陆")
 				}
 			default:
 				c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
@@ -327,6 +333,24 @@ func (c *Client) onMessage(data []byte) {
 				} else {
 					c.SendError(DATA_ERROR, message.Op, "数据结构错误")
 				}
+			}
+		case ResetRoom:
+			// 重置房间状态
+			if c.room == nil {
+				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
+			} else {
+				// 停止帧同步，同时清空帧缓存
+				c.room.StopFrameSync()
+				c.room.frameDatas = []any{}
+				// 重置房间状态
+				c.room.roomState = &ClientState{
+					Data: map[string]any{},
+				}
+				// 重置用户状态
+				c.room.userState = map[int]*ClientState{}
+				c.SendToUserOp(&ClientMessage{
+					Op: ResetRoom,
+				})
 			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
