@@ -219,6 +219,34 @@ func (c *Client) onMessage(data []byte) {
 			} else {
 				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
 			}
+		case LockRoom:
+			// 更新房间自定义信息，房主操作
+			if c.room == nil {
+				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
+			} else {
+				if c.room.master == c {
+					c.room.lock = true
+					c.SendToUserOp(&ClientMessage{
+						Op: LockRoom,
+					})
+				} else {
+					c.SendError(ROOM_PERMISSION_DENIED, message.Op, "需要房主操作")
+				}
+			}
+		case UnlockRoom:
+			// 更新房间自定义信息，房主操作
+			if c.room == nil {
+				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
+			} else {
+				if c.room.master == c {
+					c.room.lock = false
+					c.SendToUserOp(&ClientMessage{
+						Op: LockRoom,
+					})
+				} else {
+					c.SendError(ROOM_PERMISSION_DENIED, message.Op, "需要房主操作")
+				}
+			}
 		case UpdateRoomCustomData:
 			// 更新房间自定义信息，房主操作
 			if c.room == nil {

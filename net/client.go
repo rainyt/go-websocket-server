@@ -48,6 +48,8 @@ const (
 	FrameSyncReady       ClientAction = 27 // 帧同步准备传输
 	ResetRoom            ClientAction = 28 // 重置房间状态
 	Matched              ClientAction = 29 // 匹配成功，匹配成功后，可通过GetRoomData获取房间信息
+	LockRoom             ClientAction = 30 // 锁定房间
+	UnlockRoom           ClientAction = 31 // 取消锁定房间
 )
 
 type ClientMessage struct {
