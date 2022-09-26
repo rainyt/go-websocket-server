@@ -24,9 +24,9 @@ type MatchRange struct {
 
 // 房间、玩家之间匹配可选参数，匹配参数会跟用户的data参数进行匹配
 type MatchOption struct {
-	Key        string                `json:"key"`    // 匹配key，字符串比较，当为一样的时候，则对匹配，如果为空字符串时，则忽略此匹配
-	Number     int                   `json:"number"` // 匹配所需的总人数
-	RangeValue map[string]MatchRange `json:"range`   // 匹配参数的最小值，到最大值
+	Key    string                `json:"key"`    // 匹配key，字符串比较，当为一样的时候，则对匹配，如果为空字符串时，则忽略此匹配
+	Number int                   `json:"number"` // 匹配所需的总人数
+	Range  map[string]MatchRange `json:"range`   // 匹配参数的最小值，到最大值
 }
 
 // 匹配用户
@@ -104,7 +104,7 @@ func (o *MatchOption) matchClient(c *Client) bool {
 	util.Log("[matchClient]")
 	// 需先验证Key是否一致，或者无要求
 	if o.Key == c.matchOption.Key {
-		for k, mr := range o.RangeValue {
+		for k, mr := range o.Range {
 			v, b := c.userData[k]
 			if b {
 				i, b2 := v.(int)
