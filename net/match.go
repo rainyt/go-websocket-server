@@ -104,23 +104,29 @@ func (o *MatchOption) matchClient(c *Client) bool {
 	util.Log("[matchClient]")
 	// 需先验证Key是否一致，或者无要求
 	if o.Key == c.matchOption.Key {
-		for k, mr := range o.Range {
-			v, b := c.userData[k]
-			if b {
-				i, b2 := v.(int)
-				if b2 {
-					if !(mr.Min <= i && i <= mr.Max) {
-						util.Log("匹配验证错误：范围值不匹配")
+		// 人数验证
+		if o.Number == c.matchOption.Number {
+			// 参数验证
+			for k, mr := range o.Range {
+				v, b := c.userData[k]
+				if b {
+					i, b2 := v.(int)
+					if b2 {
+						if !(mr.Min <= i && i <= mr.Max) {
+							util.Log("匹配验证错误：范围值不匹配")
+							return false
+						}
+					} else {
+						util.Log("匹配验证错误：无法获取" + k + "比较参数")
 						return false
 					}
 				} else {
-					util.Log("匹配验证错误：无法获取" + k + "比较参数")
+					util.Log("匹配验证错误：range不匹配")
 					return false
 				}
-			} else {
-				util.Log("匹配验证错误：range不匹配")
-				return false
 			}
+		} else {
+			util.Log("匹配验证错误：房间人数不匹配")
 		}
 	} else {
 		util.Log("匹配验证错误：key不匹配")
