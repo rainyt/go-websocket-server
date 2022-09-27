@@ -1,6 +1,30 @@
 package util
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"sync"
+)
+
+type Map struct {
+	lock sync.Mutex
+	Data map[string]any
+}
+
+func CreateMap() *Map {
+	return &Map{
+		Data: map[string]any{},
+	}
+}
+
+func (m *Map) Store(key string, data any) {
+	m.lock.Lock()
+	m.Data[key] = data
+	m.lock.Unlock()
+}
+
+func (m *Map) GetData(key string, data any) any {
+	return m.Data[key]
+}
 
 func GetMapValueToInt(data any, key string) int {
 	pMap, pBool := data.(map[string]any)

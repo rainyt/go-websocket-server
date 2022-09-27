@@ -3,7 +3,6 @@ package net
 import (
 	"fmt"
 	"net"
-	"sync"
 	"time"
 	"websocket_server/util"
 )
@@ -76,9 +75,9 @@ func (s *Server) CreateRoom(user *Client, option RoomConfigOption) *Room {
 		oldMsgs:   util.CreateArray(),
 		userState: map[int]*ClientState{},
 		roomState: &ClientState{
-			Data: sync.Map{},
+			Data: util.CreateMap(),
 		},
-		customData: sync.Map{},
+		customData: util.CreateMap(),
 	}
 	s.rooms.Push(&room)
 	room.JoinClient(user)

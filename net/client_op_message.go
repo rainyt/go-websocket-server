@@ -3,7 +3,6 @@ package net
 import (
 	"encoding/json"
 	"fmt"
-	"sync"
 	"websocket_server/util"
 )
 
@@ -367,7 +366,7 @@ func (c *Client) onMessage(data []byte) {
 					u, e := c.room.userState[c.uid]
 					if !e || u == nil {
 						u = &ClientState{
-							Data: sync.Map{},
+							Data: util.CreateMap(),
 						}
 					}
 					for _, v := range keys {
@@ -401,7 +400,7 @@ func (c *Client) onMessage(data []byte) {
 				c.room.frameDatas = util.CreateArray()
 				// 重置房间状态
 				c.room.roomState = &ClientState{
-					Data: sync.Map{},
+					Data: util.CreateMap(),
 				}
 				// 重置用户状态
 				c.room.userState = map[int]*ClientState{}

@@ -1,14 +1,13 @@
 package net
 
 import (
-	"sync"
 	"time"
 	"websocket_server/util"
 )
 
 // 客户端的状态同步使用的数据结构
 type ClientState struct {
-	Data sync.Map `json:"data"` // 客户端状态同步的所用到的数据储存在这里
+	Data *util.Map `json:"data"` // 客户端状态同步的所用到的数据储存在这里
 }
 
 // 房间可选参数
@@ -30,7 +29,7 @@ type Room struct {
 	cacheId     int                  // 房间已缓存的时间轴Id
 	option      *RoomConfigOption    // 房间可选参数
 	matchOption *MatchOption         // 房间匹配参数
-	customData  sync.Map             // 房间自定义数据
+	customData  *util.Map            // 房间自定义数据
 	oldMsgs     *util.Array          // 历史消息，会记录所有`RoomMessage`信息
 }
 
@@ -236,8 +235,14 @@ func (r *Room) GetRoomData() any {
 	}
 	data["users"] = users.List
 	data["max"] = r.option.maxCounts
-	data["data"] = r.customData
-	data["state"] = r.roomState.Data
-	data["usersState"] = r.userState
+	data["data"] = r.customData.Data
+	data["state"] = r.roomState.Data.Data
+	var state map[int]any = map[int]any{}
+	for k, cs := range r.userState {
+		if cs != nil {
+			state[k] = cs.Data.Data
+		}
+	}
+	data["usersState"] = state
 	return data
 }
