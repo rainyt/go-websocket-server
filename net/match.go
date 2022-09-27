@@ -102,6 +102,10 @@ func (m *Matchs) mathMatch(c *Client) {
 // 匹配客户端用户
 func (o *MatchOption) matchClient(c *Client) bool {
 	util.Log("[matchClient]")
+	if c.matchOption == nil {
+		util.Log("用户没有匹配参数")
+		return false
+	}
 	// 需先验证Key是否一致，或者无要求
 	if o.Key == c.matchOption.Key {
 		// 人数验证

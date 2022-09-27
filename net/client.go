@@ -51,6 +51,7 @@ const (
 	LockRoom             ClientAction = 30 // 锁定房间
 	UnlockRoom           ClientAction = 31 // 取消锁定房间
 	MatchRoom            ClientAction = 32 // 匹配房间
+	SetRoomMatchOption   ClientAction = 33 // 设置房间的匹配参数
 )
 
 type ClientMessage struct {

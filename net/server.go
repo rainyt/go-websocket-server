@@ -116,3 +116,20 @@ func (s *Server) ExitRoom(c *Client) {
 		}
 	}
 }
+
+// 匹配房间
+func (s *Server) MatchRoom(c *Client) (*Room, bool) {
+	if c.room == nil {
+		for _, v := range s.rooms.List {
+			r := v.(*Room)
+			if r.matchOption != nil && r.matchOption.matchClient(c) {
+				// 匹配房间不会去匹配带密码的房间
+				r2, b2 := s.JoinRoom(c, r.id, "")
+				if b2 {
+					return r2, b2
+				}
+			}
+		}
+	}
+	return nil, false
+}

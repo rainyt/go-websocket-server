@@ -409,6 +409,54 @@ func (c *Client) onMessage(data []byte) {
 					Op: ResetRoom,
 				})
 			}
+		case SetRoomMatchOption:
+			// 设置匹配参数
+			if c.room == nil {
+				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
+			} else {
+				if c.room.master == c {
+					b := util.SetJsonTo(message.Data, c.room.matchOption)
+					if b {
+						c.SendToUserOp(&ClientMessage{
+							Op: SetRoomMatchOption,
+						})
+					} else {
+						c.SendError(DATA_ERROR, message.Op, "数据结构错误")
+					}
+				} else {
+					c.SendError(ROOM_PERMISSION_DENIED, message.Op, "需要房主操作")
+				}
+			}
+		case MatchRoom:
+			// 匹配房间
+			if c.room != nil {
+				c.SendError(JOIN_ROOM_ERROR, message.Op, "你已经在房间中")
+			} else {
+				matchOption := &MatchOption{}
+				util.SetJsonTo(message.Data, matchOption)
+				c.matchOption = matchOption
+				r, b := CurrentServer.MatchRoom(c)
+				if b {
+					c.SendToUserOp(&ClientMessage{
+						Op: MatchRoom,
+						Data: map[string]any{
+							"id": r.id,
+						}},
+					)
+				} else {
+					// 当不存在匹配房间时，如果是自动创建房间时，则开始读取
+					r2 := CurrentServer.CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: ""})
+					r2.matchOption = matchOption
+					r2.JoinClient(c)
+					c.SendToUserOp(&ClientMessage{
+						Op: MatchRoom,
+						Data: map[string]any{
+							"id": r2.id,
+						}},
+					)
+				}
+				c.matchOption = nil
+			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}
