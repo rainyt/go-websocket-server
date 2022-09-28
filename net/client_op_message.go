@@ -206,6 +206,16 @@ func (c *Client) onMessage(data []byte) {
 				c.SendToUserOp(&ClientMessage{
 					Op: UpdateUserData,
 				})
+				// 如果存在房间时，应该同步到房间中的每个人
+				if c.room != nil {
+					c.room.SendToAllUserOp(&ClientMessage{
+						Op: UpdateRoomUserData,
+						Data: map[string]any{
+							"uid":  c.uid,
+							"data": message.Data,
+						},
+					}, c)
+				}
 			} else {
 				c.SendError(UPDATE_USER_ERROR, message.Op, "无效的操作数据")
 			}

@@ -1,6 +1,7 @@
 package net
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"time"
@@ -16,8 +17,7 @@ type Server struct {
 	usersSQL *UserDataSQL // 用户数据库，管理已注册、登陆的用户基础信息
 }
 
-// 开始侦听服务器
-func (s *Server) Listen(ip string, port int) {
+func (s *Server) InitServer() {
 	CurrentServer = s
 	s.matchs = &Matchs{
 		matchUsers:      util.CreateArray(),
@@ -28,8 +28,35 @@ func (s *Server) Listen(ip string, port int) {
 	s.usersSQL = &UserDataSQL{
 		users: map[string]*RegisterUserData{},
 	}
-	fmt.Println("Server start:" + ip + ":" + fmt.Sprint(port))
+}
+
+// 开始侦听WebSocket服务器（ws）
+func (s *Server) Listen(ip string, port int) {
+	s.InitServer()
+	fmt.Println("[WS]Server start:" + ip + ":" + fmt.Sprint(port))
 	n, e := net.Listen("tcp", ip+":"+fmt.Sprint(port))
+	if e != nil {
+		fmt.Println(e.Error())
+	}
+	for {
+		c, e := n.Accept()
+		if e == nil {
+			// 将用户写入到用户列表中
+			s.users.Push(CreateClient(c))
+		}
+	}
+}
+
+// 开始侦听TLS协议WebSocket服务器（wss）
+func (s *Server) ListenTLS(ip string, port int) {
+	s.InitServer()
+	c, e := tls.LoadX509KeyPair("tls.pem", "tls.key")
+	if e != nil {
+		panic(e)
+	}
+	config := &tls.Config{Certificates: []tls.Certificate{c}}
+	fmt.Println("[WSS]Server start:" + ip + ":" + fmt.Sprint(port))
+	n, e := tls.Listen("tcp", ip+":"+fmt.Sprint(port), config)
 	if e != nil {
 		fmt.Println(e.Error())
 	}

@@ -8,7 +8,6 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"runtime"
 	"strings"
 	"time"
 	"websocket_server/util"
@@ -52,6 +51,7 @@ const (
 	UnlockRoom           ClientAction = 31 // 取消锁定房间
 	MatchRoom            ClientAction = 32 // 匹配房间
 	SetRoomMatchOption   ClientAction = 33 // 设置房间的匹配参数
+	UpdateRoomUserData   ClientAction = 34 // 更新房间用户中的数据
 )
 
 type ClientMessage struct {
@@ -128,6 +128,7 @@ type Client struct {
 	name          string         // 用户名称
 	online        bool           // 是否在线
 	matchOption   *MatchOption   // 房间匹配参数
+	compress      bool           // 客户端是否启动压缩传输
 }
 
 // 发送数据给所有人
@@ -139,7 +140,10 @@ func (c *Client) SendToAllUser(data []byte) {
 
 // 单独发送数据到当前用户
 func (c *Client) SendToUser(data []byte) {
-	c.Write(data)
+	_, err := c.Write(data)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 }
 
 // 发送客户端数据到当前用户
@@ -147,8 +151,7 @@ func (c *Client) SendToUserOp(data *ClientMessage) {
 	v, err := json.Marshal(data)
 	if err == nil {
 		// 发送
-		// util.Log("发送内容：", string(v))
-		bdata := prepareFrame(v, Text, true)
+		bdata := prepareFrame(v, Text, true, c.compress)
 		c.SendToUser(bdata.Data)
 	}
 }
@@ -176,13 +179,12 @@ func (c *Client) onData(data []byte) {
 
 // 发送一个WebSocket包
 func (c *Client) WriteWebSocketData(data []byte, opcode Opcode) {
-	var dataContent = prepareFrame(data, opcode, true).Data
+	var dataContent = prepareFrame(data, opcode, true, c.compress).Data
 	c.SendToUser(dataContent)
-	util.Log("发送的长度", len(dataContent))
 }
 
 // 包装成一个WebSocket包
-func prepareFrame(data []byte, opcode Opcode, isFinal bool) util.Bytes {
+func prepareFrame(data []byte, opcode Opcode, isFinal bool, compress bool) util.Bytes {
 	newdata := util.Bytes{Data: []byte{}}
 	var isMasked = false // All clientes messages must be masked: http://tools.ietf.org/html/rfc6455#section-5.1
 	var mask = generateMask()
@@ -214,6 +216,9 @@ func prepareFrame(data []byte, opcode Opcode, isFinal bool) util.Bytes {
 		newdata.WriteBytes(maskdata)
 	} else {
 		newdata.WriteBytes(data)
+	}
+	if compress {
+		util.Log("压缩传输")
 	}
 	return newdata
 }
@@ -248,7 +253,7 @@ func ReadWebSocketData(c *Client) ([]byte, bool) {
 		c.partialLength = ((b1 >> 0) & 0x7F)
 		c.isMasked = ((b1 >> 7) & 1) != 0
 
-		// util.Log(b0, b1)
+		util.Log(b0, b1)
 		// util.Log("c.isFinal=", c.isFinal)
 		// util.Log("c.isMasked=", c.isMasked)
 		// util.Log("c.opcode=", c.opcode)
@@ -292,7 +297,24 @@ func ReadWebSocketData(c *Client) ([]byte, bool) {
 		data := c.data.ReadBytes(c.length)
 		switch c.opcode {
 		case Binary, Text, Continuation:
-			util.Log("do c.opcode")
+			fmt.Println("do c.opcode")
+
+			//根据刚才存有压缩内容的buffer获取flate Reader
+			// buf := new(bytes.Buffer)
+			// buf.Write(data)
+			// flateReader := flate.NewReader(buf)
+			// defer flateReader.Close()
+			//copy flate Reader中的内容
+			// deBuffer := new(bytes.Buffer)
+			// _, err := io.Copy(deBuffer, flateReader)
+			// if err != nil {
+			// 	fmt.Println("解压错误:" + err.Error())
+			// } else {
+			// 	data2 := deBuffer.Bytes()
+			// 	data2 = applyMask(data2, c.mask)
+			// 	fmt.Println("解压成功", string(data2))
+			// }
+
 			if c.isFinal {
 				if c.isMasked {
 					data = applyMask(data, c.mask)
@@ -356,7 +378,7 @@ func (c *Client) onUserOut() {
 	// 从服务器匹配列表中取消
 	CurrentServer.matchs.cannelMatchUser(c)
 	//
-	fmt.Println("Server.NumGoroutine=" + fmt.Sprint(runtime.NumGoroutine()))
+	// fmt.Println("Server.NumGoroutine=" + fmt.Sprint(runtime.NumGoroutine()))
 
 }
 
@@ -380,24 +402,38 @@ func (c *Client) GetUserData() any {
 	return data
 }
 
+func formatString(str string) string {
+	str = strings.ReplaceAll(str, " ", "")
+	str = strings.ReplaceAll(str, "\n", "")
+	str = strings.ReplaceAll(str, "\r", "")
+	return str
+}
+
 // 同意WebSocket握手
 func (c *Client) handshake(content string) {
-	util.Log("handshake")
 	s := strings.Split(content, "\n")
 	var secWebSocketKey string
+	var extensions string
 	for _, v := range s {
 		keys := strings.Split(v, ":")
 		switch keys[0] {
+		case "Sec-WebSocket-Extensions":
+			// 判断压缩是否开启
+			extensions = formatString(keys[1])
+			index := strings.Index(extensions, "permessage-deflate")
+			if index == -1 {
+				index = strings.Index(extensions, "x-webkit-deflate-frame")
+			}
+			// c.compress = index != -1
+			c.compress = false
 		case "Sec-WebSocket-Key":
-			secWebSocketKey = keys[1]
-			secWebSocketKey = strings.ReplaceAll(secWebSocketKey, " ", "")
-			secWebSocketKey = strings.ReplaceAll(secWebSocketKey, "\n", "")
-			secWebSocketKey = strings.ReplaceAll(secWebSocketKey, "\r", "")
+			secWebSocketKey = formatString(keys[1])
 		}
 	}
 	if secWebSocketKey != "" {
 		// 同意握手时，返回信息
 		base := secWebSocketKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+		util.Log("secWebSocketKey=" + base)
 		t := sha1.New()
 		io.WriteString(t, base)
 		bs := t.Sum(nil)
@@ -407,13 +443,27 @@ func (c *Client) handshake(content string) {
 			"Upgrade: websocket",
 			"Connection: Upgrade",
 			"Sec-WebSocket-Accept: " + encoded,
+			"Access-Control-Allow-Credentials: true",
+			"Access-Control-Allow-Headers: content-type",
+			// "Sec-WebSocket-Protocol: chat",
 		}
-		data := strings.Join(handdata, "\n") + "\r\n\r\n"
+		// 启动压缩时返回
+		// if c.compress {
+		// handdata = append(handdata, "Sec-WebSocket-Extensions: "+extensions)
+		// handdata = append(handdata, "Sec-WebSocket-Extensions: "+"permessage-deflate")
+		// handdata = append(handdata, "Sec-WebSocket-Extensions: permessage-deflate; server_no_context_takeover; client_no_context_takeover")
+		// }
+		data := strings.Join(handdata, "\r\n") + "\r\n\r\n"
 		c.SendToUser([]byte(data))
 		// 标记握手成功
 		c.state = Head
+
+		// util.Log("handshake data")
+		// util.Log(c.handshakeData)
 		util.Log("handshake end")
+		// util.Log(data)
 	} else {
+		util.Log("握手中断")
 		c.Close()
 	}
 }
@@ -422,7 +472,6 @@ func (c *Client) handshake(content string) {
 func clientHandle(c *Client) {
 	defer c.Close()
 	defer c.onUserOut()
-	defer util.Log("Out user", c.RemoteAddr().String())
 	for {
 		// 每次客户端读取的数据长度
 		var bytes [128]byte
@@ -440,7 +489,6 @@ func clientHandle(c *Client) {
 
 // 创建客户端对象
 func CreateClient(c net.Conn) *Client {
-	util.Log("Join user", c.RemoteAddr().String())
 	client := Client{
 		Conn:      c,
 		websocket: true,
