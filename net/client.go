@@ -299,6 +299,7 @@ func ReadWebSocketData(c *Client) ([]byte, bool) {
 		case Binary, Text, Continuation:
 			fmt.Println("do c.opcode")
 
+			// TODO 如果后续需要支持压缩支持，这里需要确认
 			//根据刚才存有压缩内容的buffer获取flate Reader
 			// buf := new(bytes.Buffer)
 			// buf.Write(data)
@@ -321,8 +322,6 @@ func ReadWebSocketData(c *Client) ([]byte, bool) {
 				}
 			}
 			util.Log(string(data))
-			// 回复一句话
-			// c.WriteWebSocketData([]byte("我是来自服务器的消息"), Text)
 			c.onMessage(data)
 		case Ping:
 			c.WriteWebSocketData(data, Pong)
@@ -377,9 +376,6 @@ func (c *Client) onUserOut() {
 	CurrentServer.users.Remove(c)
 	// 从服务器匹配列表中取消
 	CurrentServer.matchs.cannelMatchUser(c)
-	//
-	// fmt.Println("Server.NumGoroutine=" + fmt.Sprint(runtime.NumGoroutine()))
-
 }
 
 func (c *Client) SendError(errCode ClientErrorCode, op ClientAction, data string) {
@@ -420,10 +416,12 @@ func (c *Client) handshake(content string) {
 		case "Sec-WebSocket-Extensions":
 			// 判断压缩是否开启
 			extensions = formatString(keys[1])
-			index := strings.Index(extensions, "permessage-deflate")
-			if index == -1 {
-				index = strings.Index(extensions, "x-webkit-deflate-frame")
-			}
+			util.Log("extensions:" + extensions)
+			// todo 待处理
+			// index := strings.Index(extensions, "permessage-deflate")
+			// if index == -1 {
+			// 	index = strings.Index(extensions, "x-webkit-deflate-frame")
+			// }
 			// c.compress = index != -1
 			c.compress = false
 		case "Sec-WebSocket-Key":
@@ -447,7 +445,7 @@ func (c *Client) handshake(content string) {
 			"Access-Control-Allow-Headers: content-type",
 			// "Sec-WebSocket-Protocol: chat",
 		}
-		// 启动压缩时返回
+		// TODO 启动压缩时返回
 		// if c.compress {
 		// handdata = append(handdata, "Sec-WebSocket-Extensions: "+extensions)
 		// handdata = append(handdata, "Sec-WebSocket-Extensions: "+"permessage-deflate")
@@ -457,13 +455,7 @@ func (c *Client) handshake(content string) {
 		c.SendToUser([]byte(data))
 		// 标记握手成功
 		c.state = Head
-
-		// util.Log("handshake data")
-		// util.Log(c.handshakeData)
-		util.Log("handshake end")
-		// util.Log(data)
 	} else {
-		util.Log("握手中断")
 		c.Close()
 	}
 }
@@ -496,6 +488,7 @@ func CreateClient(c net.Conn) *Client {
 		state:     Handshake,
 		userData:  map[string]any{},
 		online:    true,
+		frames:    util.CreateArray(),
 	}
 	go clientHandle(&client)
 	return &client

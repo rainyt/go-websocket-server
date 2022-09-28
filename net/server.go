@@ -105,6 +105,7 @@ func (s *Server) CreateRoom(user *Client, option RoomConfigOption) *Room {
 			Data: util.CreateMap(),
 		},
 		customData: util.CreateMap(),
+		frameDatas: util.CreateArray(),
 	}
 	s.rooms.Push(&room)
 	room.JoinClient(user)
