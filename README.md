@@ -2,9 +2,13 @@
 Golang编写的WebSocket服务器，用于提供通用的房间管理、帧同步、状态同步等实时对战支持。
 
 # 启动服务器
+如果需要关闭WSS，`wss`参数需要为0
 ```shell
-go run ./main.go 8888
+go run ./main.go --port 8888 --ip 0.0.0.0 --wss 1
 ```
+
+# WSS
+如果要使用`wss`协议时，请下载对应的tls证书（pem/key）文件到根目录，命名为：tls.pem / tls.key，命令行`wss`参数设置为1开启。
 
 # HaxeAPI
 https://github.com/rainyt/hxonline
