@@ -5,6 +5,13 @@ type Bytes struct {
 	Data []byte
 }
 
+// 创建一个二进制数据
+func CreateBytes() *Bytes {
+	return &Bytes{
+		Data: []byte{},
+	}
+}
+
 // 写入一个int字节
 func (b *Bytes) Write(i int) {
 	b.Data = append(b.Data, byte(i))

@@ -52,6 +52,7 @@ const (
 	MatchRoom            ClientAction = 32 // 匹配房间
 	SetRoomMatchOption   ClientAction = 33 // 设置房间的匹配参数
 	UpdateRoomUserData   ClientAction = 34 // 更新房间用户中的数据
+	GetRoomList          ClientAction = 35 // 获取房间列表
 )
 
 type ClientMessage struct {

@@ -100,8 +100,8 @@ func (c *Client) onMessage(data []byte) {
 			} else {
 				id := util.GetMapValueToInt(message.Data, "id")
 				password := util.GetMapValueToString(message.Data, "password")
-				room, b := CurrentServer.JoinRoom(c, id, password)
-				if b {
+				room, err := CurrentServer.JoinRoom(c, id, password)
+				if err == nil {
 					c.SendToUserOp(&ClientMessage{
 						Op: JoinRoom,
 						Data: map[string]any{
@@ -109,7 +109,7 @@ func (c *Client) onMessage(data []byte) {
 						}},
 					)
 				} else {
-					c.SendError(JOIN_ROOM_ERROR, message.Op, "无法加入该房间")
+					c.SendError(JOIN_ROOM_ERROR, message.Op, err.Error())
 				}
 			}
 		case ExitRoom:
@@ -444,8 +444,8 @@ func (c *Client) onMessage(data []byte) {
 				matchOption := &MatchOption{}
 				util.SetJsonTo(message.Data, matchOption)
 				c.matchOption = matchOption
-				r, b := CurrentServer.MatchRoom(c)
-				if b {
+				r, err := CurrentServer.MatchRoom(c)
+				if err == nil {
 					c.SendToUserOp(&ClientMessage{
 						Op: MatchRoom,
 						Data: map[string]any{
@@ -465,6 +465,28 @@ func (c *Client) onMessage(data []byte) {
 					)
 				}
 				c.matchOption = nil
+			}
+		case GetRoomList:
+			// 获取房间列表
+			page := util.GetMapValueToInt(message.Data, "page")
+			counts := util.GetMapValueToInt(message.Data, "counts")
+			data := CurrentServer.GetRoomList(page, counts)
+			if data != nil {
+				c.SendToUserOp(&ClientMessage{
+					Op: GetRoomList,
+					Data: map[string]any{
+						"onlineCounts": CurrentServer.users.Length(),
+						"list":         data,
+					},
+				})
+			} else {
+				c.SendToUserOp(&ClientMessage{
+					Op: GetRoomList,
+					Data: map[string]any{
+						"onlineCounts": CurrentServer.users.Length(),
+						"list":         []any{},
+					},
+				})
 			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))

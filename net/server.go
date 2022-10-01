@@ -113,10 +113,10 @@ func (s *Server) CreateRoom(user *Client, option RoomConfigOption) *Room {
 }
 
 // 加入房间
-func (s *Server) JoinRoom(user *Client, roomid int, password string) (*Room, bool) {
+func (s *Server) JoinRoom(user *Client, roomid int, password string) (*Room, error) {
 	// 如果用户已经在房间中，则无法继续加入
 	if user.room != nil {
-		return nil, false
+		return nil, fmt.Errorf("已存在房间")
 	}
 	for _, v := range s.rooms.List {
 		room := v.(*Room)
@@ -125,12 +125,12 @@ func (s *Server) JoinRoom(user *Client, roomid int, password string) (*Room, boo
 			if !room.lock && room.users.Length() < room.option.maxCounts && room.option.password == password {
 				room.JoinClient(user)
 			} else {
-				return nil, false
+				return nil, fmt.Errorf("房间不匹配，无法进入")
 			}
-			return room, true
+			return room, nil
 		}
 	}
-	return nil, false
+	return nil, fmt.Errorf("无法找到" + fmt.Sprint(roomid) + "房间")
 }
 
 // 退出房间
@@ -145,18 +145,60 @@ func (s *Server) ExitRoom(c *Client) {
 }
 
 // 匹配房间
-func (s *Server) MatchRoom(c *Client) (*Room, bool) {
+func (s *Server) MatchRoom(c *Client) (*Room, error) {
 	if c.room == nil {
 		for _, v := range s.rooms.List {
 			r := v.(*Room)
 			if r.matchOption != nil && r.matchOption.matchClient(c) {
 				// 匹配房间不会去匹配带密码的房间
-				r2, b2 := s.JoinRoom(c, r.id, "")
-				if b2 {
-					return r2, b2
+				r2, err := s.JoinRoom(c, r.id, "")
+				if err == nil {
+					return r2, nil
 				}
 			}
 		}
 	}
-	return nil, false
+	return nil, fmt.Errorf("已在房间内")
+}
+
+// 房间的基础信息
+type RoomInfo struct {
+	Id        int    `json:"id"`        // 房间id
+	Counts    int    `json:"counts"`    // 当前人数
+	MaxCounts int    `json:"maxCounts"` // 最大人数
+	Password  bool   `json:"password"`  // 是否存在密码
+	Master    string `json:"master"`    // 房主名称
+}
+
+// 获取指定范围的房间列表状态（仅返回房间当前人数、房间ID、是否有密码等基础信息）
+func (s *Server) GetRoomList(page int, counts int) any {
+	len := s.rooms.Length()
+	allpage := int(len/counts) + 1
+	fmt.Println("查询房间page=" + fmt.Sprint(page) + "allpage=" + fmt.Sprint(allpage))
+	roomLen := s.rooms.Length()
+	if page > 0 && page <= allpage && roomLen > 0 {
+		// 开始截取的位置
+		startIndex := (page - 1) * counts
+		// 最后截取的位置
+		endIndex := startIndex + counts
+		if endIndex > roomLen {
+			endIndex = roomLen
+		}
+		list := s.rooms.List[startIndex:endIndex]
+		if list != nil {
+			arr := []RoomInfo{}
+			for _, v := range list {
+				r := v.(*Room)
+				arr = append(arr, RoomInfo{
+					Id:        r.id,
+					Counts:    r.users.Length(),
+					MaxCounts: r.option.maxCounts,
+					Password:  r.option.password != "",
+					Master:    r.master.name,
+				})
+			}
+			return arr
+		}
+	}
+	return nil
 }
