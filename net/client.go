@@ -166,20 +166,18 @@ func (c *Client) WriteWebSocketData(data []byte, opcode websocket.Opcode) {
 // 用户离线时触发
 func (c *Client) onUserOut() {
 	// 如果存在房间时，则需要退出房间
+	c.online = false
 	if c.room != nil {
 		util.Log("用户退出")
-		c.online = false
 		// 如果房间存在，而且房间没有锁定时，离线则可以直接退出房间
-		if c.room != nil {
-			if !c.room.lock {
-				CurrentServer.ExitRoom(c)
-			} else {
-				// 离线状态
-				c.room.SendToAllUserOp(&ClientMessage{
-					Op:   OutOnlineRoomClient,
-					Data: c.GetUserData(),
-				}, c)
-			}
+		if !c.room.lock || c.room.isInvalidRoom() {
+			CurrentServer.ExitRoom(c)
+		} else {
+			// 离线状态
+			c.room.SendToAllUserOp(&ClientMessage{
+				Op:   OutOnlineRoomClient,
+				Data: c.GetUserData(),
+			}, c)
 		}
 		// 从服务器列表中删除
 	}
