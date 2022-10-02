@@ -11,23 +11,12 @@ import (
 var CurrentServer *Server
 
 type Server struct {
-	users    *util.Array  // 用户列表
-	rooms    *util.Array  // 房间列表
-	matchs   *Matchs      // 匹配管理
-	usersSQL *UserDataSQL // 用户数据库，管理已注册、登陆的用户基础信息
+	apps *util.Map
 }
 
 func (s *Server) InitServer() {
 	CurrentServer = s
-	s.matchs = &Matchs{
-		matchUsers:      util.CreateArray(),
-		matchUsersGroup: util.CreateArray(),
-	}
-	s.users = util.CreateArray()
-	s.rooms = util.CreateArray()
-	s.usersSQL = &UserDataSQL{
-		users: map[string]*RegisterUserData{},
-	}
+	s.apps = util.CreateMap()
 }
 
 // 开始侦听WebSocket服务器（ws）
@@ -42,7 +31,8 @@ func (s *Server) Listen(ip string, port int) {
 		c, e := n.Accept()
 		if e == nil {
 			// 将用户写入到用户列表中
-			s.users.Push(CreateClient(c))
+			// s.users.Push(CreateClient(c))
+			CreateClient(c)
 		}
 	}
 }
@@ -64,13 +54,50 @@ func (s *Server) ListenTLS(ip string, port int) {
 		c, e := n.Accept()
 		if e == nil {
 			// 将用户写入到用户列表中
-			s.users.Push(CreateClient(c))
+			CreateClient(c)
+			// s.users.Push(CreateClient(c))
 		}
 	}
 }
 
+// 追加用户
+func (s *Server) PushUser(c *Client) {
+	c.getApp().users.Push(c)
+}
+
+// 获取App对象
+func (s *Server) getApp(appid string) *App {
+	app, b := s.apps.Data[appid]
+	if !b {
+		app = &App{}
+		app.(*App).initApp()
+		s.apps.Store(appid, app)
+	}
+	return app.(*App)
+}
+
+type App struct {
+	users    *util.Array  // 用户列表
+	rooms    *util.Array  // 房间列表
+	matchs   *Matchs      // 匹配管理
+	usersSQL *UserDataSQL // 用户数据库，管理已注册、登陆的用户基础信息
+}
+
+// 初始化App
+func (s *App) initApp() {
+	s.matchs = &Matchs{
+		matchUsers:      util.CreateArray(),
+		matchUsersGroup: util.CreateArray(),
+	}
+	s.users = util.CreateArray()
+	s.rooms = util.CreateArray()
+	s.usersSQL = &UserDataSQL{
+		users: map[string]*RegisterUserData{},
+	}
+}
+
 // 创建房间
-func (s *Server) CreateRoom(user *Client, option RoomConfigOption) *Room {
+func (s *App) CreateRoom(user *Client, option RoomConfigOption) *Room {
 	if user.room != nil {
 		return nil
 	}
@@ -113,7 +140,7 @@ func (s *Server) CreateRoom(user *Client, option RoomConfigOption) *Room {
 }
 
 // 加入房间
-func (s *Server) JoinRoom(user *Client, roomid int, password string) (*Room, error) {
+func (s *App) JoinRoom(user *Client, roomid int, password string) (*Room, error) {
 	// 如果用户已经在房间中，则无法继续加入
 	if user.room != nil {
 		return nil, fmt.Errorf("已存在房间")
@@ -134,7 +161,7 @@ func (s *Server) JoinRoom(user *Client, roomid int, password string) (*Room, err
 }
 
 // 退出房间
-func (s *Server) ExitRoom(c *Client) {
+func (s *App) ExitRoom(c *Client) {
 	if c.room != nil {
 		room := c.room
 		c.room.ExitClient(c)
@@ -145,7 +172,7 @@ func (s *Server) ExitRoom(c *Client) {
 }
 
 // 匹配房间
-func (s *Server) MatchRoom(c *Client) (*Room, error) {
+func (s *App) MatchRoom(c *Client) (*Room, error) {
 	if c.room == nil {
 		for _, v := range s.rooms.List {
 			r := v.(*Room)
@@ -171,7 +198,7 @@ type RoomInfo struct {
 }
 
 // 获取指定范围的房间列表状态（仅返回房间当前人数、房间ID、是否有密码等基础信息）
-func (s *Server) GetRoomList(page int, counts int) any {
+func (s *App) GetRoomList(page int, counts int) any {
 	len := s.rooms.Length()
 	allpage := int(len/counts) + 1
 	fmt.Println("查询房间page=" + fmt.Sprint(page) + "allpage=" + fmt.Sprint(allpage))

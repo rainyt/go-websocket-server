@@ -29,12 +29,22 @@ func (c *Client) onMessage(data []byte) {
 					loginData := message.Data.(map[string]any)
 					userName := loginData["username"]
 					openId := loginData["openid"]
-					if userName == nil || openId == nil {
-						c.SendError(LOGIN_ERROR, message.Op, "需要提供openid和username")
+					appId := util.GetMapValueToString(loginData, "appid")
+					if appId == "" {
+						c.SendError(LOGIN_ERROR, message.Op, "需要提供appid")
+						c.Close()
 						return
 					}
+					if userName == nil || openId == nil {
+						c.SendError(LOGIN_ERROR, message.Op, "需要提供openid和username")
+						c.Close()
+						return
+					}
+					// 绑定AppId
+					c.appid = appId
+					c.getApp().users.Push(c)
 					// 只需要用户名和OpenId即可登陆
-					userData := CurrentServer.usersSQL.login(c, openId.(string), userName.(string))
+					userData := c.getApp().usersSQL.login(c, openId.(string), userName.(string))
 					util.Log("登陆成功：", userData)
 					c.SendToUserOp(&ClientMessage{
 						Op: Login,
@@ -49,7 +59,6 @@ func (c *Client) onMessage(data []byte) {
 							"uid": c.uid,
 						},
 					})
-					// c.SendError(LOGIN_ERROR, message.Op, "已登陆")
 				}
 			default:
 				c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
@@ -66,7 +75,7 @@ func (c *Client) onMessage(data []byte) {
 				return
 			}
 			// 创建一个房间
-			room := CurrentServer.CreateRoom(c, RoomConfigOption{})
+			room := c.getApp().CreateRoom(c, RoomConfigOption{})
 			util.Log("开始创建房间", room)
 			if room != nil {
 				// 创建成功
@@ -100,7 +109,7 @@ func (c *Client) onMessage(data []byte) {
 			} else {
 				id := util.GetMapValueToInt(message.Data, "id")
 				password := util.GetMapValueToString(message.Data, "password")
-				room, err := CurrentServer.JoinRoom(c, id, password)
+				room, err := c.getApp().JoinRoom(c, id, password)
 				if err == nil {
 					c.SendToUserOp(&ClientMessage{
 						Op: JoinRoom,
@@ -181,7 +190,7 @@ func (c *Client) onMessage(data []byte) {
 			b2 := util.SetJsonTo(&message.Data, option)
 			if b2 {
 				fmt.Println("匹配参数", option)
-				b := CurrentServer.matchs.matchUser(c, option)
+				b := c.getApp().matchs.matchUser(c, option)
 				if !b {
 					c.SendError(MATCH_ERROR, message.Op, "已在匹配列表中")
 				} else {
@@ -444,7 +453,7 @@ func (c *Client) onMessage(data []byte) {
 				matchOption := &MatchOption{}
 				util.SetJsonTo(message.Data, matchOption)
 				c.matchOption = matchOption
-				r, err := CurrentServer.MatchRoom(c)
+				r, err := c.getApp().MatchRoom(c)
 				if err == nil {
 					c.SendToUserOp(&ClientMessage{
 						Op: MatchRoom,
@@ -454,7 +463,7 @@ func (c *Client) onMessage(data []byte) {
 					)
 				} else {
 					// 当不存在匹配房间时，如果是自动创建房间时，则开始读取
-					r2 := CurrentServer.CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: ""})
+					r2 := c.getApp().CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: ""})
 					r2.matchOption = matchOption
 					r2.JoinClient(c)
 					c.SendToUserOp(&ClientMessage{
@@ -470,12 +479,13 @@ func (c *Client) onMessage(data []byte) {
 			// 获取房间列表
 			page := util.GetMapValueToInt(message.Data, "page")
 			counts := util.GetMapValueToInt(message.Data, "counts")
-			data := CurrentServer.GetRoomList(page, counts)
+			data := c.getApp().GetRoomList(page, counts)
+			util.Log("appid=", c.appid)
 			if data != nil {
 				c.SendToUserOp(&ClientMessage{
 					Op: GetRoomList,
 					Data: map[string]any{
-						"onlineCounts": CurrentServer.users.Length(),
+						"onlineCounts": c.getApp().users.Length(),
 						"list":         data,
 					},
 				})
@@ -483,7 +493,7 @@ func (c *Client) onMessage(data []byte) {
 				c.SendToUserOp(&ClientMessage{
 					Op: GetRoomList,
 					Data: map[string]any{
-						"onlineCounts": CurrentServer.users.Length(),
+						"onlineCounts": c.getApp().users.Length(),
 						"list":         []any{},
 					},
 				})

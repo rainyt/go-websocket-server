@@ -109,17 +109,26 @@ type Client struct {
 	online        bool             // 是否在线
 	matchOption   *MatchOption     // 房间匹配参数
 	compress      bool             // 客户端是否启动压缩传输
+	appid         string           // 绑定的AppId
 }
 
 // 发送数据给所有人
 func (c *Client) SendToAllUser(data []byte) {
-	for _, v := range CurrentServer.users.List {
+	for _, v := range c.getApp().users.List {
 		v.(*Client).SendToUser(data)
 	}
 }
 
+// 获取App
+func (c *Client) getApp() *App {
+	return CurrentServer.getApp(c.appid)
+}
+
 // 单独发送数据到当前用户
 func (c *Client) SendToUser(data []byte) {
+	if !c.online {
+		return
+	}
 	_, err := c.Write(data)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -171,7 +180,7 @@ func (c *Client) onUserOut() {
 		util.Log("用户退出")
 		// 如果房间存在，而且房间没有锁定时，离线则可以直接退出房间
 		if !c.room.lock || c.room.isInvalidRoom() {
-			CurrentServer.ExitRoom(c)
+			c.getApp().ExitRoom(c)
 		} else {
 			// 离线状态
 			c.room.SendToAllUserOp(&ClientMessage{
@@ -181,9 +190,9 @@ func (c *Client) onUserOut() {
 		}
 		// 从服务器列表中删除
 	}
-	CurrentServer.users.Remove(c)
+	c.getApp().users.Remove(c)
 	// 从服务器匹配列表中取消
-	CurrentServer.matchs.cannelMatchUser(c)
+	c.getApp().matchs.cannelMatchUser(c)
 }
 
 func (c *Client) SendError(errCode ClientErrorCode, op ClientAction, data string) {

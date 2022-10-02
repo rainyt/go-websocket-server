@@ -14,6 +14,8 @@ go run ./main.go --port 8888 --ip 0.0.0.0 --wss 1
 https://github.com/rainyt/hxonline
 
 # 功能列表
+- [x] 应用区分处理
+    - [x] 根据AppID将用户分开（不同的AppId不会互相访问影响）
 - [x] 用户管理
     - [x] 登陆注册（使用自创建的唯一id+用户名登陆，这意味着不需要依赖用户数据，只要提供id识别码和用户名都可以登陆） 
     - [x] 更新自定义用户数据

@@ -68,7 +68,7 @@ func (m *Matchs) mathMatch(c *Client) {
 			if mg.option.Number == mg.users.Length() {
 				util.Log("匹配成功")
 				// 创建一个匹配好的房间
-				room := CurrentServer.CreateRoom(mg.users.List[0].(*Client), RoomConfigOption{
+				room := c.getApp().CreateRoom(mg.users.List[0].(*Client), RoomConfigOption{
 					maxCounts: mg.option.Number,
 					password:  "",
 				})

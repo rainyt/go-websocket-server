@@ -47,7 +47,12 @@ func (r *Room) updateCustomData(o any) {
 	}
 }
 
+// 更新房间配置
 func (r *Room) updateRoomData(data RoomConfigOption) {
+	// 当放人数大于最大人数时，则以最大人数来处理
+	if r.users.Length() > data.maxCounts {
+		data.maxCounts = r.users.Length()
+	}
 	r.option = &data
 }
 
@@ -81,12 +86,13 @@ func (r *Room) kickOut(uid int) {
 // 房间的帧同步实现
 func onRoomFrame(r *Room) {
 	for {
+		app := r.master.getApp()
 		if !r.frameSync || r.isInvalidRoom() {
 			// 帧同步停止，或者房间已经不存在用户时
 			util.Log("房间停止帧同步")
 			// 并将所有用户移除
 			for _, v := range r.users.List {
-				CurrentServer.ExitRoom(v.(*Client))
+				app.ExitRoom(v.(*Client))
 			}
 			break
 		}
@@ -203,7 +209,7 @@ func (r *Room) ExitClient(client *Client) {
 			client.room = nil
 			if r.users.Length() == 0 {
 				// 房间已经不存在用户了，则删除当前房间
-				CurrentServer.rooms.Remove(r)
+				client.getApp().rooms.Remove(r)
 			} else {
 				// 如果用户仍然存在时，如果是房主掉线，则需要更换房主。不管房主是否更换，都需要通知客户端用户重新更新房间信息
 				if r.master == client {
