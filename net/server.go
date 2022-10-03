@@ -195,6 +195,7 @@ type RoomInfo struct {
 	MaxCounts int    `json:"maxCounts"` // 最大人数
 	Password  bool   `json:"password"`  // 是否存在密码
 	Master    string `json:"master"`    // 房主名称
+	Lock      bool   `json:"lock"`      // 房间是否已锁定
 }
 
 // 获取指定范围的房间列表状态（仅返回房间当前人数、房间ID、是否有密码等基础信息）
@@ -222,6 +223,7 @@ func (s *App) GetRoomList(page int, counts int) any {
 					MaxCounts: r.option.maxCounts,
 					Password:  r.option.password != "",
 					Master:    r.master.name,
+					Lock:      r.lock,
 				})
 			}
 			return arr
