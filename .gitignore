@@ -21,4 +21,5 @@
 go.work
 .DS_Store
 websocket_server
+hxonline
 Makefile
