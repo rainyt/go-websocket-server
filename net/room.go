@@ -60,7 +60,7 @@ func (r *Room) updateRoomData(data RoomConfigOption) {
 func (r *Room) isInvalidRoom() bool {
 	hasOnline := false
 	for _, v := range r.users.List {
-		if v.(*Client).online {
+		if v.(*Client).Connected {
 			hasOnline = true
 		}
 	}
@@ -86,14 +86,14 @@ func (r *Room) kickOut(uid int) {
 // 房间的帧同步实现
 func onRoomFrame(r *Room) {
 	for {
-		app := r.master.getApp()
+		// app := r.master.getApp()
 		if !r.frameSync || r.isInvalidRoom() {
 			// 帧同步停止，或者房间已经不存在用户时
 			util.Log("房间停止帧同步")
 			// 并将所有用户移除
-			for _, v := range r.users.List {
-				app.ExitRoom(v.(*Client))
-			}
+			// for _, v := range r.users.List {
+			// app.ExitRoom(v.(*Client))
+			// }
 			break
 		}
 		frameData := map[int][]any{}

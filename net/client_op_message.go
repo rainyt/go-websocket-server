@@ -7,12 +7,12 @@ import (
 )
 
 // 消息处理
-func (c *Client) onMessage(data []byte) {
+func (c *Client) OnMessage(data []byte) {
 	// 解析API操作
 	message := ClientMessage{}
 	var err error
 	// 如果是二进制数据，则需要解析处理，第一位是op操作符，剩余的是内容
-	if c.frameIsBinary {
+	if c.FrameIsBinary {
 		op := ClientAction(data[0])
 		content := data[1:]
 		message.Op = op
@@ -21,7 +21,6 @@ func (c *Client) onMessage(data []byte) {
 		err = json.Unmarshal(data, &message)
 	}
 	if err == nil {
-		fmt.Println("处理命令", message)
 		if c.uid == 0 || message.Op == Login {
 			switch message.Op {
 			case Login:
@@ -400,7 +399,6 @@ func (c *Client) onMessage(data []byte) {
 							"data": m,
 						},
 					}, c)
-					fmt.Println("最后更改状态：", c.uid, u)
 					// 通知更改成功
 					c.SendToUserOp(&ClientMessage{
 						Op: SetClientState,

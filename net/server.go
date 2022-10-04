@@ -11,7 +11,9 @@ import (
 var CurrentServer *Server
 
 type Server struct {
-	apps *util.Map
+	apps             *util.Map // 所有应用的管理网
+	connectCounts    int       // 当前连接数
+	maxConnectCounts int       // 当前服务器最大连接数
 }
 
 func (s *Server) InitServer() {
@@ -30,8 +32,13 @@ func (s *Server) Listen(ip string, port int) {
 	for {
 		c, e := n.Accept()
 		if e == nil {
-			// 将用户写入到用户列表中
-			// s.users.Push(CreateClient(c))
+			// 当连接人数大于服务器最大限制人数后，直接中断
+			if s.connectCounts >= s.maxConnectCounts {
+				c.Close()
+				return
+			}
+			s.connectCounts++
+			// 创建客户端
 			CreateClient(c)
 		}
 	}
