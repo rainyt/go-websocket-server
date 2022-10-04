@@ -145,6 +145,7 @@ func (r *Room) StartFrameSync() {
 	if r.frameSync {
 		return
 	}
+	util.Log("StartFrameSync")
 	r.frameSync = true
 	r.lock = true
 	// 所有人都要接收这个字节，确保帧同步启动
@@ -158,6 +159,8 @@ func (r *Room) StartFrameSync() {
 func (r *Room) StopFrameSync() {
 	r.frameSync = false
 	r.lock = false
+	r.cacheId = 0
+	util.Log("StopFrameSync")
 }
 
 // 给房间的所有用户发送消息
