@@ -84,10 +84,12 @@ func (s *Server) getApp(appid string) *App {
 }
 
 type App struct {
-	users    *util.Array  // 用户列表
-	rooms    *util.Array  // 房间列表
-	matchs   *Matchs      // 匹配管理
-	usersSQL *UserDataSQL // 用户数据库，管理已注册、登陆的用户基础信息
+	users        *util.Array  // 用户列表
+	rooms        *util.Array  // 房间列表
+	matchs       *Matchs      // 匹配管理
+	usersSQL     *UserDataSQL // 用户数据库，管理已注册、登陆的用户基础信息
+	msglist      *util.Array  // 全服消息列表
+	msgListeners *util.Array  // 全服消息侦听列表
 }
 
 // 初始化App
@@ -98,9 +100,46 @@ func (s *App) initApp() {
 	}
 	s.users = util.CreateArray()
 	s.rooms = util.CreateArray()
+	s.msglist = util.CreateArray()
+	s.msgListeners = util.CreateArray()
 	s.usersSQL = &UserDataSQL{
 		users: map[string]*RegisterUserData{},
 	}
+}
+
+// 发送全服消息
+func (s *App) SendServerMsg(user *Client, message *ClientMessage) {
+	s.msglist.Push(message.Data)
+	// 全服消息仅保留100条消息
+	if s.msglist.Length() > 100 {
+		s.msglist.Remove(s.msglist.List[0])
+	}
+	for _, v := range s.msgListeners.List {
+		u := v.(*Client)
+		if u != user {
+			u.SendToUserOp(&ClientMessage{
+				Op:   GetServerMsg,
+				Data: message.Data,
+			})
+		}
+	}
+}
+
+// 侦听全服消息
+func (s *App) ListenerServerMsg(user *Client) {
+	if s.msgListeners.IndexOf(user) == -1 {
+		s.msgListeners.Push(user)
+	}
+}
+
+// 取消侦听全服消息
+func (s *App) CannelListenerServerMsg(user *Client) {
+	s.msgListeners.Remove(user)
+}
+
+// 获取全部服务列表
+func (s *App) GetServerMsg(user *Client) {
+	// todo
 }
 
 // 创建房间

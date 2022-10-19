@@ -11,43 +11,47 @@ import (
 type ClientAction int
 
 const (
-	Error                ClientAction = -1 // 通用错误，发生错误时，Data请传递`ClientError`结构体
-	Message              ClientAction = 0  // 普通消息
-	CreateRoom           ClientAction = 1  // 创建房间
-	JoinRoom             ClientAction = 2  // 加入房间
-	ChangedRoom          ClientAction = 3  // 房间信息变更
-	GetRoomData          ClientAction = 4  // 获取房间信息
-	StartFrameSync       ClientAction = 5  // 开启帧同步
-	StopFrameSync        ClientAction = 6  // 停止帧同步
-	UploadFrame          ClientAction = 7  // 上传帧同步数据
-	Login                ClientAction = 8  // 登陆用户
-	FData                ClientAction = 9  // 帧数据
-	RoomMessage          ClientAction = 10 // 发送房间消息
-	JoinRoomClient       ClientAction = 11 // 加入房间的客户端信息
-	ExitRoomClient       ClientAction = 12 // 退出房间的客户端信息
-	OutOnlineRoomClient  ClientAction = 13 // 在房间中离线的客户端信息，请注意，只有开启了帧同步的情况下收到
-	ExitRoom             ClientAction = 14 // 退出房间
-	MatchUser            ClientAction = 15 // 匹配用户
-	UpdateUserData       ClientAction = 16 // 更新用户数据
-	GetRoomOldMessage    ClientAction = 17 // 获取房间的历史消息
-	UpdateRoomCustomData ClientAction = 18 // 更新自定义房间信息（房主操作）
-	UpdateRoomOption     ClientAction = 19 // 更新房间的配置，如人数、密码等（房主操作）
-	KickOut              ClientAction = 20 // 踢出用户（房主操作）
-	SelfKickOut          ClientAction = 21 // 自已被踢出房间
-	GetFrameAt           ClientAction = 22 // 获取指定帧范围的帧事件
-	SetRoomState         ClientAction = 23 // 设置房间状态数据
-	RoomStateUpdate      ClientAction = 24 // 房间状态更新
-	SetClientState       ClientAction = 25 // 设置用户状态
-	ClientStateUpdate    ClientAction = 26 // 用户状态发生变化
-	FrameSyncReady       ClientAction = 27 // 帧同步准备传输
-	ResetRoom            ClientAction = 28 // 重置房间状态
-	Matched              ClientAction = 29 // 匹配成功，匹配成功后，可通过GetRoomData获取房间信息
-	LockRoom             ClientAction = 30 // 锁定房间
-	UnlockRoom           ClientAction = 31 // 取消锁定房间
-	MatchRoom            ClientAction = 32 // 匹配房间
-	SetRoomMatchOption   ClientAction = 33 // 设置房间的匹配参数
-	UpdateRoomUserData   ClientAction = 34 // 更新房间用户中的数据
-	GetRoomList          ClientAction = 35 // 获取房间列表
+	Error                   ClientAction = -1 // 通用错误，发生错误时，Data请传递`ClientError`结构体
+	Message                 ClientAction = 0  // 普通消息
+	CreateRoom              ClientAction = 1  // 创建房间
+	JoinRoom                ClientAction = 2  // 加入房间
+	ChangedRoom             ClientAction = 3  // 房间信息变更
+	GetRoomData             ClientAction = 4  // 获取房间信息
+	StartFrameSync          ClientAction = 5  // 开启帧同步
+	StopFrameSync           ClientAction = 6  // 停止帧同步
+	UploadFrame             ClientAction = 7  // 上传帧同步数据
+	Login                   ClientAction = 8  // 登陆用户
+	FData                   ClientAction = 9  // 帧数据
+	RoomMessage             ClientAction = 10 // 发送房间消息
+	JoinRoomClient          ClientAction = 11 // 加入房间的客户端信息
+	ExitRoomClient          ClientAction = 12 // 退出房间的客户端信息
+	OutOnlineRoomClient     ClientAction = 13 // 在房间中离线的客户端信息，请注意，只有开启了帧同步的情况下收到
+	ExitRoom                ClientAction = 14 // 退出房间
+	MatchUser               ClientAction = 15 // 匹配用户
+	UpdateUserData          ClientAction = 16 // 更新用户数据
+	GetRoomOldMessage       ClientAction = 17 // 获取房间的历史消息
+	UpdateRoomCustomData    ClientAction = 18 // 更新自定义房间信息（房主操作）
+	UpdateRoomOption        ClientAction = 19 // 更新房间的配置，如人数、密码等（房主操作）
+	KickOut                 ClientAction = 20 // 踢出用户（房主操作）
+	SelfKickOut             ClientAction = 21 // 自已被踢出房间
+	GetFrameAt              ClientAction = 22 // 获取指定帧范围的帧事件
+	SetRoomState            ClientAction = 23 // 设置房间状态数据
+	RoomStateUpdate         ClientAction = 24 // 房间状态更新
+	SetClientState          ClientAction = 25 // 设置用户状态
+	ClientStateUpdate       ClientAction = 26 // 用户状态发生变化
+	FrameSyncReady          ClientAction = 27 // 帧同步准备传输
+	ResetRoom               ClientAction = 28 // 重置房间状态
+	Matched                 ClientAction = 29 // 匹配成功，匹配成功后，可通过GetRoomData获取房间信息
+	LockRoom                ClientAction = 30 // 锁定房间
+	UnlockRoom              ClientAction = 31 // 取消锁定房间
+	MatchRoom               ClientAction = 32 // 匹配房间
+	SetRoomMatchOption      ClientAction = 33 // 设置房间的匹配参数
+	UpdateRoomUserData      ClientAction = 34 // 更新房间用户中的数据
+	GetRoomList             ClientAction = 35 // 获取房间列表
+	SendServerMsg           ClientAction = 36 // 发送全服消息
+	GetServerMsg            ClientAction = 37 // 接收到全服消息
+	ListenerServerMsg       ClientAction = 38 // 侦听全服消息
+	CannelListenerServerMsg ClientAction = 39 // 取消侦听全服消息
 )
 
 type ClientMessage struct {
@@ -150,6 +154,8 @@ func (c *Client) OnUserOut() {
 		// 从服务器列表中删除
 	}
 	c.getApp().users.Remove(c)
+	// 从服务器消息侦听中删除
+	c.getApp().CannelListenerServerMsg(c)
 	// 从服务器匹配列表中取消
 	c.getApp().matchs.cannelMatchUser(c)
 }

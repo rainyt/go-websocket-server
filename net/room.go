@@ -1,6 +1,7 @@
 package net
 
 import (
+	"sync"
 	"time"
 	"websocket_server/util"
 )
@@ -17,20 +18,21 @@ type RoomConfigOption struct {
 }
 
 type Room struct {
-	id          int
-	master      *Client              // 房主
-	users       *util.Array          // 房间用户
-	roomState   *ClientState         // 房间端的状态栏同步（每个用户都可以共享修改的内容）
-	userState   map[int]*ClientState // 客户端状态数据同步
-	frameSync   bool                 // 是否开启帧同步
-	interval    time.Duration        // 帧同步的间隔
-	lock        bool                 // 房间是否锁定（如果游戏已经开始，则会锁定房间，直到游戏结束，如果用户离线，不会立即退出房间，需要通过`ExitRoom`才能退出房间）
-	frameDatas  *util.Array          // 房间帧数据
-	cacheId     int                  // 房间已缓存的时间轴Id
-	option      *RoomConfigOption    // 房间可选参数
-	matchOption *MatchOption         // 房间匹配参数
-	customData  *util.Map            // 房间自定义数据
-	oldMsgs     *util.Array          // 历史消息，会记录所有`RoomMessage`信息
+	id            int
+	master        *Client              // 房主
+	users         *util.Array          // 房间用户
+	roomState     *ClientState         // 房间端的状态栏同步（每个用户都可以共享修改的内容）
+	userStateLock sync.Mutex           // 锁定
+	userState     map[int]*ClientState // 客户端状态数据同步
+	frameSync     bool                 // 是否开启帧同步
+	interval      time.Duration        // 帧同步的间隔
+	lock          bool                 // 房间是否锁定（如果游戏已经开始，则会锁定房间，直到游戏结束，如果用户离线，不会立即退出房间，需要通过`ExitRoom`才能退出房间）
+	frameDatas    *util.Array          // 房间帧数据
+	cacheId       int                  // 房间已缓存的时间轴Id
+	option        *RoomConfigOption    // 房间可选参数
+	matchOption   *MatchOption         // 房间匹配参数
+	customData    *util.Map            // 房间自定义数据
+	oldMsgs       *util.Array          // 历史消息，会记录所有`RoomMessage`信息
 }
 
 // 更新自定义数据

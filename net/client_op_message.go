@@ -390,7 +390,9 @@ func (c *Client) OnMessage(data []byte) {
 					for _, v := range keys {
 						u.Data.Store(v, m[v])
 					}
+					c.room.userStateLock.Lock()
 					c.room.userState[c.uid] = u
+					c.room.userStateLock.Unlock()
 					// 需要把更改数据下发给其他的所有人
 					c.room.SendToAllUserOp(&ClientMessage{
 						Op: ClientStateUpdate,
@@ -496,6 +498,24 @@ func (c *Client) OnMessage(data []byte) {
 					},
 				})
 			}
+		case SendServerMsg:
+			// 发送全服消息
+			c.getApp().SendServerMsg(c, &message)
+			c.SendToUserOp(&ClientMessage{
+				Op: SendServerMsg,
+			})
+		case ListenerServerMsg:
+			// 侦听全服消息
+			c.getApp().ListenerServerMsg(c)
+			c.SendToUserOp(&ClientMessage{
+				Op: ListenerServerMsg,
+			})
+		case CannelListenerServerMsg:
+			// 取消全服消息
+			c.getApp().CannelListenerServerMsg(c)
+			c.SendToUserOp(&ClientMessage{
+				Op: CannelListenerServerMsg,
+			})
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}
