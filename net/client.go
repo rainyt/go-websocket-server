@@ -2,8 +2,8 @@ package net
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
+	"runtime"
 	"websocket_server/util"
 	"websocket_server/websocket"
 )
@@ -52,6 +52,7 @@ const (
 	GetServerMsg            ClientAction = 37 // 接收到全服消息
 	ListenerServerMsg       ClientAction = 38 // 侦听全服消息
 	CannelListenerServerMsg ClientAction = 39 // 取消侦听全服消息
+	GetUserDataByUID        ClientAction = 40 // 通过UID获取用户数据
 )
 
 type ClientMessage struct {
@@ -111,12 +112,13 @@ func (c *Client) getApp() *App {
 
 // 单独发送数据到当前用户
 func (c *Client) SendToUser(data []byte) {
-	if !c.Connected {
-		return
-	}
-	_, err := c.Write(data)
-	if err != nil {
-		fmt.Println(err.Error())
+	// 使用线程发送
+	if c.Connected {
+		select {
+		case c.WriteChannel <- data:
+		default:
+			util.Log("发送数据渠道已关闭")
+		}
 	}
 }
 
@@ -135,7 +137,7 @@ func (c *Client) OnUserOut() {
 	// 如果存在房间时，则需要退出房间
 	c.Connected = false
 	if c.room != nil {
-		util.Log("用户退出")
+		util.Log("用户" + c.name + "退出房间")
 		// 如果房间存在，而且房间没有锁定时，离线则可以直接退出房间
 		if c.room.isInvalidRoom() {
 			// 如果是已经无效的房间，则全部移除
@@ -158,6 +160,8 @@ func (c *Client) OnUserOut() {
 	c.getApp().CannelListenerServerMsg(c)
 	// 从服务器匹配列表中取消
 	c.getApp().matchs.cannelMatchUser(c)
+	// 关闭缓存区
+	close(c.WriteChannel)
 }
 
 func (c *Client) SendError(errCode ClientErrorCode, op ClientAction, data string) {
@@ -191,7 +195,10 @@ func CreateClient(c net.Conn) *Client {
 	client.IsWebSocket = true
 	client.Data = &util.Bytes{Data: []byte{}}
 	client.State = websocket.Handshake
+	client.WriteChannel = make(chan []byte, 1024)
 	// 创建Handle绑定
+	util.Log("线程数量：", runtime.NumGoroutine())
 	go websocket.CreateClientHandle(client)
+	go websocket.CreateClientWriteHandle(client)
 	return client
 }

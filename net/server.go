@@ -109,7 +109,8 @@ func (s *App) initApp() {
 
 // 发送全服消息
 func (s *App) SendServerMsg(user *Client, message *ClientMessage) {
-	s.msglist.Push(message.Data)
+	// 动态类型使用Object引用
+	s.msglist.Push(util.CreateObject(message.Data))
 	// 全服消息仅保留100条消息
 	if s.msglist.Length() > 100 {
 		s.msglist.Remove(s.msglist.List[0])
@@ -118,8 +119,11 @@ func (s *App) SendServerMsg(user *Client, message *ClientMessage) {
 		u := v.(*Client)
 		if u != user {
 			u.SendToUserOp(&ClientMessage{
-				Op:   GetServerMsg,
-				Data: message.Data,
+				Op: GetServerMsg,
+				Data: map[string]any{
+					"uid":  user.uid,
+					"data": message.Data,
+				},
 			})
 		}
 	}

@@ -5,8 +5,6 @@ import (
 	"websocket_server/util"
 )
 
-var lock sync.Mutex
-
 type RegisterUserData struct {
 	uid      int
 	userName string
@@ -16,13 +14,12 @@ type RegisterUserData struct {
 // 用户数据数据库
 type UserDataSQL struct {
 	create_uid_index int
+	lock             sync.Mutex
 	users            map[string]*RegisterUserData
 }
 
 // 登陆角色
 func (u *UserDataSQL) login(c *Client, openId string, userName string) *RegisterUserData {
-	lock.Lock()
-	defer lock.Unlock()
 	user, err := u.users[openId]
 	if err {
 		// 用户曾经登陆过，需要检测用户是否在线，否则会发生挤出的事件
@@ -32,23 +29,37 @@ func (u *UserDataSQL) login(c *Client, openId string, userName string) *Register
 				r := user.client.room
 				r.ExitClient(user.client)
 				r.JoinClient(c)
-				util.Log("该用户仍然在房间中，加入房间")
+				util.Log("该用户[" + user.client.name + "]仍然在房间中，加入房间")
 			}
-			util.Log("掉线处理")
+			util.Log(user.client.name + "掉线处理")
 			user.client.SendError(LOGIN_OUT_ERROR, Login, "用户已在其他地方登录")
 			user.client.Close()
 		}
 	} else {
 		// 新用户
 		u.create_uid_index++
+		u.lock.Lock()
 		u.users[openId] = &RegisterUserData{
 			uid:      u.create_uid_index,
 			userName: userName,
 		}
+		u.lock.Unlock()
 		user = u.users[openId]
 	}
 	user.client = c
 	c.uid = user.uid
 	c.name = user.userName
 	return u.users[openId]
+}
+
+// 通过UID获取用户数据
+func (u *UserDataSQL) GetUserDataByUid(uid int) *RegisterUserData {
+	for _, rud := range u.users {
+		if rud.uid == uid {
+			if rud.client != nil {
+				return rud
+			}
+		}
+	}
+	return nil
 }

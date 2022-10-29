@@ -1,6 +1,7 @@
 package net
 
 import (
+	"fmt"
 	"sync"
 	"time"
 	"websocket_server/util"
@@ -134,7 +135,7 @@ func onRoomFrame(r *Room) {
 }
 
 // 记录服务器的房间信息
-func (r *Room) recordRoomMessage(data ClientMessage) {
+func (r *Room) recordRoomMessage(data *ClientMessage) {
 	r.oldMsgs.Push(data)
 	// 超出时，把第一个删除
 	if r.oldMsgs.Length() > 200 {
@@ -185,6 +186,7 @@ func (r *Room) SendToAllUserOp(data *ClientMessage, igoneClient *Client) {
 func (r *Room) JoinClient(client *Client) {
 	if client.room == nil {
 		r.users.Push(client)
+		util.Log(client.name, "加入房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 		client.room = r
 		client.SendToUserOp(&ClientMessage{
 			Op:   GetRoomData,
@@ -221,7 +223,9 @@ func (r *Room) ExitClient(client *Client) {
 					r.master = r.users.List[0].(*Client)
 				}
 				// 需要将状态清空
+				r.userStateLock.Lock()
 				r.userState[client.uid] = nil
+				r.userStateLock.Unlock()
 				// 同步退出用户信息
 				r.SendToAllUserOp(&ClientMessage{
 					Op:   ExitRoomClient,
@@ -229,6 +233,8 @@ func (r *Room) ExitClient(client *Client) {
 				}, client)
 				// 通知更新房间信息
 				r.onRoomChanged()
+
+				util.Log(client.name, client.name+"：离开房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 			}
 		}
 	}

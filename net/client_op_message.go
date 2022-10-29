@@ -9,7 +9,7 @@ import (
 // 消息处理
 func (c *Client) OnMessage(data []byte) {
 	// 解析API操作
-	message := ClientMessage{}
+	message := &ClientMessage{}
 	var err error
 	// 如果是二进制数据，则需要解析处理，第一位是op操作符，剩余的是内容
 	if c.FrameIsBinary {
@@ -167,7 +167,14 @@ func (c *Client) OnMessage(data []byte) {
 			// 转发房间信息
 			if c.room != nil {
 				c.room.recordRoomMessage(message)
-				c.room.SendToAllUserOp(&message, c)
+				// 需要知道是哪个用户发的数据
+				c.room.SendToAllUserOp(&ClientMessage{
+					Op: RoomMessage,
+					Data: map[string]any{
+						"uid":  c.uid,
+						"data": message.Data,
+					},
+				}, c)
 				c.SendToUserOp(&ClientMessage{
 					Op: RoomMessage,
 				})
@@ -500,7 +507,7 @@ func (c *Client) OnMessage(data []byte) {
 			}
 		case SendServerMsg:
 			// 发送全服消息
-			c.getApp().SendServerMsg(c, &message)
+			c.getApp().SendServerMsg(c, message)
 			c.SendToUserOp(&ClientMessage{
 				Op: SendServerMsg,
 			})
@@ -516,6 +523,22 @@ func (c *Client) OnMessage(data []byte) {
 			c.SendToUserOp(&ClientMessage{
 				Op: CannelListenerServerMsg,
 			})
+		case GetUserDataByUID:
+			// 通过UID获取用户数据
+			uid := util.GetMapValueToInt(message.Data, "uid")
+			userdata := c.getApp().usersSQL.GetUserDataByUid(uid)
+			if userdata != nil {
+				c.SendToUserOp(&ClientMessage{
+					Op: message.Op,
+					Data: map[string]any{
+						"data": userdata.client.userData,
+						"name": userdata.userName,
+						"uid":  uid,
+					},
+				})
+			} else {
+				c.SendError(OP_ERROR, message.Op, "用户数据无法获取")
+			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}
