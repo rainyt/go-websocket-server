@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"runtime"
+	"time"
 	"websocket_server/util"
 	"websocket_server/websocket"
 )
@@ -114,8 +115,18 @@ func (c *Client) getApp() *App {
 func (c *Client) SendToUser(data []byte) {
 	// 使用线程发送
 	if c.Connected {
+		if len(c.WriteChannel) == cap(c.WriteChannel) {
+			util.Log("用户缓存已超出最大值，中断处理")
+			c.Connected = false
+			c.Close()
+			return
+		}
 		select {
 		case c.WriteChannel <- data:
+		case <-time.After(5 * time.Second):
+			// 阻塞超时
+			c.Connected = false
+			c.Close()
 		default:
 			util.Log("发送数据渠道已关闭")
 		}

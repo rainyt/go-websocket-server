@@ -3,7 +3,6 @@ package websocket
 import (
 	"crypto/sha1"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -28,6 +27,7 @@ type WebSocket struct {
 	LastPong      int64       // 上一次心跳时间
 	Compress      bool        // 客户端是否启动压缩传输
 	Connected     bool        // 是否建立了连接
+	WriteChannel  chan []byte // 写入数据的发送渠道
 }
 
 type IWebSocket interface {
@@ -176,7 +176,7 @@ func ReadWebSocketData(iweb IWebSocket) ([]byte, bool) {
 		data := c.Data.ReadBytes(c.Length)
 		switch c.Opcode {
 		case Binary, Text, Continuation:
-			fmt.Println("do c.Opcode")
+			// fmt.Println("do c.Opcode")
 
 			// TODO 如果后续需要支持压缩支持，这里需要确认
 			//根据刚才存有压缩内容的buffer获取flate Reader
@@ -222,13 +222,37 @@ func ReadWebSocketData(iweb IWebSocket) ([]byte, bool) {
 	return nil, false
 }
 
-// 客户端逻辑处理
+// 客户端写入数据逻辑处理
+func CreateClientWriteHandle(client IWebSocket) {
+	for {
+		web := client.GetWebSocket()
+		writeData, b := <-web.WriteChannel
+		if !b {
+			return
+		}
+		if !web.Connected {
+			return
+		}
+		_, err := web.Write(writeData)
+		if err != nil {
+			util.Log("Error:" + err.Error())
+			web.Connected = false
+			web.Close()
+		}
+	}
+}
+
+// 客户端读取数据逻辑处理
 func CreateClientHandle(iweb IWebSocket) {
 	c := iweb.GetWebSocket()
 	defer c.Close()
 	defer iweb.OnUserOut()
 	for {
 		// 每次客户端读取的数据长度
+		if !c.Connected {
+			util.Log("已断开链接")
+			break
+		}
 		var bytes [128]byte
 		n, e := c.Read(bytes[:])
 		if e != nil {
@@ -245,7 +269,19 @@ func CreateClientHandle(iweb IWebSocket) {
 // 发送一个WebSocket包
 func (c *WebSocket) WriteWebSocketData(data []byte, opcode Opcode) {
 	var dataContent = PrepareFrame(data, opcode, true, c.Compress).Data
-	c.Conn.Write(dataContent)
+	c.Write(dataContent)
+}
+
+// 读取一个字节包
+func (c *WebSocket) Read(b []byte) (int, error) {
+	c.Conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	return c.Conn.Read(b)
+}
+
+// 写入一个字节包
+func (c *WebSocket) Write(data []byte) (int, error) {
+	c.Conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
+	return c.Conn.Write(data)
 }
 
 // 数据缓存处理
@@ -318,7 +354,8 @@ func handshake(iweb IWebSocket, content string) {
 		// handdata = append(handdata, "Sec-WebSocket-Extensions: permessage-deflate; server_no_context_takeover; client_no_context_takeover")
 		// }
 		data := strings.Join(handdata, "\r\n") + "\r\n\r\n"
-		c.Conn.Write([]byte(data))
+		// 15秒超时
+		c.Write([]byte(data))
 		// 标记握手成功
 		c.State = Head
 	} else {

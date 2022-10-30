@@ -234,7 +234,7 @@ func (r *Room) ExitClient(client *Client) {
 				// 通知更新房间信息
 				r.onRoomChanged()
 
-				util.Log(client.name, client.name+"：离开房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
+				util.Log(client.name, "：离开房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 			}
 		}
 	}
