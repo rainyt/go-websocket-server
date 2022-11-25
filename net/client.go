@@ -54,6 +54,7 @@ const (
 	ListenerServerMsg       ClientAction = 38 // 侦听全服消息
 	CannelListenerServerMsg ClientAction = 39 // 取消侦听全服消息
 	GetUserDataByUID        ClientAction = 40 // 通过UID获取用户数据
+	GetServerOldMsg         ClientAction = 41 // 获取全服历史消息
 )
 
 type ClientMessage struct {

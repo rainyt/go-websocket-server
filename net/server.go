@@ -110,7 +110,11 @@ func (s *App) initApp() {
 // 发送全服消息
 func (s *App) SendServerMsg(user *Client, message *ClientMessage) {
 	// 动态类型使用Object引用
-	s.msglist.Push(util.CreateObject(message.Data))
+	serMsg := map[string]any{
+		"uid":  user.uid,
+		"data": message.Data,
+	}
+	s.msglist.Push(util.CreateObject(serMsg))
 	// 全服消息仅保留100条消息
 	if s.msglist.Length() > 100 {
 		s.msglist.Remove(s.msglist.List[0])
@@ -119,11 +123,8 @@ func (s *App) SendServerMsg(user *Client, message *ClientMessage) {
 		u := v.(*Client)
 		if u != user {
 			u.SendToUserOp(&ClientMessage{
-				Op: GetServerMsg,
-				Data: map[string]any{
-					"uid":  user.uid,
-					"data": message.Data,
-				},
+				Op:   GetServerMsg,
+				Data: serMsg,
 			})
 		}
 	}
@@ -141,9 +142,25 @@ func (s *App) CannelListenerServerMsg(user *Client) {
 	s.msgListeners.Remove(user)
 }
 
-// 获取全部服务列表
-func (s *App) GetServerMsg(user *Client) {
-	// todo
+// 获取全部服消息列表
+func (s *App) GetServerMsg(user *Client, newCounts int) {
+	if newCounts > s.msglist.Length() {
+		newCounts = s.msglist.Length()
+	}
+	util.Log("newCounts=", newCounts)
+	if newCounts == 0 {
+		// 返回空消息
+		return
+	}
+	startIndex := s.msglist.Length() - newCounts
+	for i := startIndex; i < s.msglist.Length(); i++ {
+		o := s.msglist.List[i].(*util.Object)
+		user.SendToUserOp(&ClientMessage{
+			Op:   GetServerMsg,
+			Data: o.Data,
+		})
+	}
+
 }
 
 // 创建房间

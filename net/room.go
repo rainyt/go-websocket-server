@@ -105,8 +105,10 @@ func onRoomFrame(r *Room) {
 			c := v.(*Client)
 			a := frameData[c.uid]
 			for _, v2 := range c.frames.List {
-				f := v2.(FrameData)
-				a = append(a, f.Data)
+				f, b := v2.(FrameData)
+				if b {
+					a = append(a, f.Data)
+				}
 			}
 			if a != nil {
 				frameData[c.uid] = a
@@ -255,11 +257,13 @@ func (r *Room) GetRoomData() any {
 	data["data"] = r.customData.Data
 	data["state"] = r.roomState.Data.Data
 	var state map[int]any = map[int]any{}
+	r.userStateLock.Lock()
 	for k, cs := range r.userState {
 		if cs != nil {
 			state[k] = cs.Data.Data
 		}
 	}
+	r.userStateLock.Unlock()
 	data["usersState"] = state
 	return data
 }

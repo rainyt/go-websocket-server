@@ -388,6 +388,7 @@ func (c *Client) OnMessage(data []byte) {
 					for k := range m {
 						keys = append(keys, k)
 					}
+					c.room.userStateLock.Lock()
 					u, e := c.room.userState[c.uid]
 					if !e || u == nil {
 						u = &ClientState{
@@ -397,7 +398,6 @@ func (c *Client) OnMessage(data []byte) {
 					for _, v := range keys {
 						u.Data.Store(v, m[v])
 					}
-					c.room.userStateLock.Lock()
 					c.room.userState[c.uid] = u
 					c.room.userStateLock.Unlock()
 					// 需要把更改数据下发给其他的所有人
@@ -538,6 +538,17 @@ func (c *Client) OnMessage(data []byte) {
 				})
 			} else {
 				c.SendError(OP_ERROR, message.Op, "用户数据无法获取")
+			}
+		case GetServerOldMsg:
+			// 获取历史全服消息
+			counts := util.GetMapValueToInt(message.Data, "counts")
+			if counts > 0 {
+				c.getApp().GetServerMsg(c, counts)
+				c.SendToUserOp(&ClientMessage{
+					Op: GetServerOldMsg,
+				})
+			} else {
+				c.SendError(OP_ERROR, message.Op, "无效的counts数量")
 			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
