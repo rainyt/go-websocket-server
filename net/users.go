@@ -54,6 +54,8 @@ func (u *UserDataSQL) login(c *Client, openId string, userName string) *Register
 
 // 通过UID获取用户数据
 func (u *UserDataSQL) GetUserDataByUid(uid int) *RegisterUserData {
+	u.lock.Lock()
+	defer u.lock.Unlock()
 	for _, rud := range u.users {
 		if rud.uid == uid {
 			if rud.client != nil {
