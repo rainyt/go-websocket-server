@@ -4,26 +4,66 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"reflect"
 	"time"
 	"websocket_server/util"
 )
 
 var CurrentServer *Server
 
-type Server struct {
-	apps             *util.Map // 所有应用的管理网
-	ConnectCounts    int       // 当前连接数
-	MaxConnectCounts int       // 当前服务器最大连接数
+// 扩展方法绑定
+type CallFunc struct {
+	Api    any
+	Method reflect.Method
 }
 
+// 调用接口
+func (c *CallFunc) call(client *Client, data any) {
+	args := []reflect.Value{
+		reflect.ValueOf(c.Api),
+		reflect.ValueOf(client),
+		reflect.ValueOf(data),
+	}
+	c.Method.Func.Call(args)
+}
+
+// 服务器方法
+type Server struct {
+	apps             *util.Map            // 所有应用的管理网
+	ConnectCounts    int                  // 当前连接数
+	MaxConnectCounts int                  // 当前服务器最大连接数
+	ExtendsApi       map[string]*CallFunc // 扩展方法
+}
+
+// 扩展注册
+func (s *Server) Register(extendsApi any) {
+	val := reflect.ValueOf(extendsApi)
+	t := reflect.TypeOf(extendsApi)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+		t = t.Elem()
+	}
+	tName := t.Name()
+	for i := 0; i < val.NumMethod(); i++ {
+		method := t.Method(i)
+		id := tName + "." + method.Name
+		fmt.Println("Register:", id)
+		s.ExtendsApi[id] = &CallFunc{
+			Api:    extendsApi,
+			Method: method,
+		}
+	}
+}
+
+// 初始化服务器
 func (s *Server) InitServer() {
 	CurrentServer = s
+	s.ExtendsApi = map[string]*CallFunc{}
 	s.apps = util.CreateMap()
 }
 
 // 开始侦听WebSocket服务器（ws）
 func (s *Server) Listen(ip string, port int) {
-	s.InitServer()
 	fmt.Println("[WS]Server start:" + ip + ":" + fmt.Sprint(port))
 	n, e := net.Listen("tcp", ip+":"+fmt.Sprint(port))
 	if e != nil {

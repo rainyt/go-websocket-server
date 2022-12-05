@@ -550,6 +550,15 @@ func (c *Client) OnMessage(data []byte) {
 			} else {
 				c.SendError(OP_ERROR, message.Op, "无效的counts数量")
 			}
+		case ExtendsCall:
+			// 扩展方法调用
+			mName := util.GetMapValueToString(message.Data, "f")
+			api, b := CurrentServer.ExtendsApi[mName]
+			if b {
+				api.call(c, util.GetMapValueToAny(message.Data, "d"))
+			} else {
+				c.SendError(OP_ERROR, message.Op, "无效扩展方法")
+			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 		}
