@@ -24,6 +24,8 @@ func init() {
 
 func main() {
 	s := net.Server{}
+	// 初始化
+	s.InitServer()
 	if *wss == 1 {
 		s.ListenTLS(*ip, *port)
 	} else {
