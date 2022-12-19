@@ -177,7 +177,6 @@ func ReadWebSocketData(iweb IWebSocket) ([]byte, bool) {
 		switch c.Opcode {
 		case Binary, Text, Continuation:
 			// fmt.Println("do c.Opcode")
-
 			// TODO 如果后续需要支持压缩支持，这里需要确认
 			//根据刚才存有压缩内容的buffer获取flate Reader
 			// buf := new(bytes.Buffer)
@@ -254,9 +253,12 @@ func CreateClientHandle(iweb IWebSocket) {
 			break
 		}
 		var bytes [128]byte
+		// if c.State == Handshake {
+		// 	// 握手时，需要超时15秒
+		// 	c.Conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+		// }
 		n, e := c.Read(bytes[:])
 		if e != nil {
-			util.Log("已断开链接：", e.Error())
 			break
 		}
 		if n == 0 {
@@ -273,8 +275,9 @@ func (c *WebSocket) WriteWebSocketData(data []byte, opcode Opcode) {
 	c.Write(dataContent)
 }
 
-// 读取一个字节包（读取暂时不做超时处理）
+// 读取一个字节包
 func (c *WebSocket) Read(b []byte) (int, error) {
+	// 读取时，暂不做超时处理
 	// c.Conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 	return c.Conn.Read(b)
 }

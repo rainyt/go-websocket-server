@@ -175,6 +175,10 @@ func (c *Client) OnUserOut() {
 	c.getApp().matchs.cannelMatchUser(c)
 	// 关闭缓存区
 	close(c.WriteChannel)
+	// 触发扩展关闭接口
+	for _, cf := range CurrentServer.OnClosedApi {
+		cf.Call(c, &ClientMessage{}, nil)
+	}
 }
 
 func (c *Client) SendError(errCode ClientErrorCode, op ClientAction, data string) {
@@ -195,6 +199,11 @@ func (c *Client) GetUserData() any {
 	data["name"] = c.name
 	data["data"] = c.userData
 	return data
+}
+
+// 获取注册数据
+func (c *Client) GetRegisterUserData() *RegisterUserData {
+	return c.getApp().usersSQL.GetUserDataByUid(c.uid)
 }
 
 // 创建客户端对象

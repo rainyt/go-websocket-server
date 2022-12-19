@@ -43,6 +43,19 @@ func GetMapValueToInt(data any, key string) int {
 	}
 }
 
+func GetMapValueToAny(data any, key string) any {
+	pMap, pBool := data.(map[string]any)
+	if pBool {
+		v, b := pMap[key]
+		if b {
+			return v
+		}
+		return nil
+	} else {
+		return nil
+	}
+}
+
 func GetMapValueToString(data any, key string) string {
 	pMap, pBool := data.(map[string]any)
 	if pBool {

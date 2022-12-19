@@ -3,6 +3,7 @@ package net
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
 	"net"
 	"reflect"
 	"time"
@@ -11,6 +12,9 @@ import (
 
 var CurrentServer *Server
 
+// 空数据
+type EmptyData struct{}
+
 // 扩展方法绑定
 type CallFunc struct {
 	Api    any
@@ -18,13 +22,26 @@ type CallFunc struct {
 }
 
 // 调用接口
-func (c *CallFunc) call(client *Client, data any) {
+func (c *CallFunc) Call(client *Client, message *ClientMessage, data any) {
+	if data == nil {
+		data = EmptyData{}
+	}
 	args := []reflect.Value{
 		reflect.ValueOf(c.Api),
 		reflect.ValueOf(client),
 		reflect.ValueOf(data),
 	}
-	c.Method.Func.Call(args)
+	v := c.Method.Func.Call(args)
+	r := v[0].Interface()
+	e := v[1].Interface()
+	if e != nil {
+		client.SendError(OP_ERROR, message.Op, e.(error).Error())
+	} else if r != nil {
+		client.SendToUserOp(&ClientMessage{
+			Op:   message.Op,
+			Data: r,
+		})
+	}
 }
 
 // 服务器方法
@@ -33,25 +50,41 @@ type Server struct {
 	ConnectCounts    int                  // 当前连接数
 	MaxConnectCounts int                  // 当前服务器最大连接数
 	ExtendsApi       map[string]*CallFunc // 扩展方法
+	OnClosedApi      map[string]*CallFunc // 客户端关闭扩展方法
 }
 
 // 扩展注册
 func (s *Server) Register(extendsApi any) {
+	// 反射类型值
 	val := reflect.ValueOf(extendsApi)
+	// 反射类型
 	t := reflect.TypeOf(extendsApi)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
 		t = t.Elem()
 	}
+	// 获得类型名称
 	tName := t.Name()
+	// 遍历所有方法
 	for i := 0; i < val.NumMethod(); i++ {
 		method := t.Method(i)
 		id := tName + "." + method.Name
-		fmt.Println("Register:", id)
-		s.ExtendsApi[id] = &CallFunc{
-			Api:    extendsApi,
-			Method: method,
+		log.Println("Register:", id)
+		switch method.Name {
+		case "OnClosed":
+			// 特定接口
+			s.OnClosedApi[tName] = &CallFunc{
+				Api:    extendsApi,
+				Method: method,
+			}
+		default:
+			// 注册方法
+			s.ExtendsApi[id] = &CallFunc{
+				Api:    extendsApi,
+				Method: method,
+			}
 		}
+
 	}
 }
 
@@ -59,6 +92,7 @@ func (s *Server) Register(extendsApi any) {
 func (s *Server) InitServer() {
 	CurrentServer = s
 	s.ExtendsApi = map[string]*CallFunc{}
+	s.OnClosedApi = map[string]*CallFunc{}
 	s.apps = util.CreateMap()
 }
 

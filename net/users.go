@@ -5,17 +5,19 @@ import (
 	"websocket_server/util"
 )
 
+// 注册的用户数据
 type RegisterUserData struct {
-	uid      int
-	userName string
-	client   *Client
+	uid        int     // 用户唯一ID
+	userName   string  // 用户昵称
+	client     *Client // 用户引用的客户端
+	CustomData any     // 自定义数据，该参数在扩展自定义服务API时，可直接使用
 }
 
 // 用户数据数据库
 type UserDataSQL struct {
-	create_uid_index int
-	lock             sync.Mutex
-	users            map[string]*RegisterUserData
+	create_uid_index int                          // UID创建索引
+	lock             sync.Mutex                   // 创建锁
+	users            map[string]*RegisterUserData // 注册数据
 }
 
 // 登陆角色
@@ -35,6 +37,7 @@ func (u *UserDataSQL) login(c *Client, openId string, userName string) *Register
 			util.Log(user.client.name + "掉线处理")
 			user.client.SendError(LOGIN_OUT_ERROR, Login, "用户已在其他地方登录")
 			user.client.Close()
+			user.userName = userName
 		}
 	} else {
 		// 新用户

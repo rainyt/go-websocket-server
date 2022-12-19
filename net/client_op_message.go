@@ -44,7 +44,7 @@ func (c *Client) OnMessage(data []byte) {
 					c.getApp().users.Push(c)
 					// 只需要用户名和OpenId即可登陆
 					userData := c.getApp().usersSQL.login(c, openId.(string), userName.(string))
-					util.Log("登陆成功：", userData)
+					util.Log("登陆成功：", openId.(string), userData)
 					c.SendToUserOp(&ClientMessage{
 						Op: Login,
 						Data: map[string]any{
@@ -555,7 +555,7 @@ func (c *Client) OnMessage(data []byte) {
 			mName := util.GetMapValueToString(message.Data, "f")
 			api, b := CurrentServer.ExtendsApi[mName]
 			if b {
-				api.call(c, util.GetMapValueToAny(message.Data, "d"))
+				api.Call(c, message, util.GetMapValueToAny(message.Data, "d"))
 			} else {
 				c.SendError(OP_ERROR, message.Op, "无效扩展方法")
 			}
