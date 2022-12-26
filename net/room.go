@@ -105,9 +105,11 @@ func onRoomFrame(r *Room) {
 			c := v.(*Client)
 			a := frameData[c.uid]
 			for _, v2 := range c.frames.List {
-				f, b := v2.(FrameData)
-				if b {
-					a = append(a, f.Data)
+				if v2 != nil {
+					f, b := v2.(FrameData)
+					if b {
+						a = append(a, f.Data)
+					}
 				}
 			}
 			if a != nil {
