@@ -137,11 +137,13 @@ func (c *Client) SendToUser(data []byte) {
 
 // 发送客户端数据到当前用户
 func (c *Client) SendToUserOp(data *ClientMessage) {
-	v, err := json.Marshal(data)
-	if err == nil {
-		// 发送
-		bdata := websocket.PrepareFrame(v, websocket.Text, true, c.Compress)
-		c.SendToUser(bdata.Data)
+	if data != nil {
+		v, err := json.Marshal(data)
+		if err == nil {
+			// 发送
+			bdata := websocket.PrepareFrame(v, websocket.Text, true, c.Compress)
+			c.SendToUser(bdata.Data)
+		}
 	}
 }
 
