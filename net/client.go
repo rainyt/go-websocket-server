@@ -138,7 +138,12 @@ func (c *Client) SendToUser(data []byte) {
 // 发送客户端数据到当前用户
 func (c *Client) SendToUserOp(data *ClientMessage) {
 	if data != nil {
-		v, err := json.Marshal(data)
+		// 指针会有nil丢失的情况，保护数据
+		var value ClientMessage = ClientMessage{
+			Op:   data.Op,
+			Data: data.Data,
+		}
+		v, err := json.Marshal(value)
 		if err == nil {
 			// 发送
 			bdata := websocket.PrepareFrame(v, websocket.Text, true, c.Compress)
