@@ -131,6 +131,7 @@ func (o *MatchOption) matchClient(c *Client) bool {
 			}
 		} else {
 			util.Log("匹配验证错误：房间人数不匹配")
+			return false
 		}
 	} else {
 		util.Log("匹配验证错误：key不匹配")
