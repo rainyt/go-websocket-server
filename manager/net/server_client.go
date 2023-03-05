@@ -3,6 +3,7 @@ package net
 import (
 	"fmt"
 	"net"
+	"runtime"
 	"strings"
 	"time"
 	"websocket_server/util"
@@ -20,6 +21,7 @@ type ServerClient struct {
 
 // 服务器联系逻辑
 func onServerClient(s *ServerClient) {
+	defer GoRecover()
 	util.Log("ServerClient create:" + s.ip + ":" + fmt.Sprint(s.port))
 	for {
 		// 预判conn连接
@@ -66,6 +68,16 @@ func onServerClient(s *ServerClient) {
 				s.state = websocket.Handshake
 				s.Conn = nil
 			}
+		}
+	}
+}
+
+// 处理线程中报的错误，以避免引起主线程挂掉
+func GoRecover() {
+	if err := recover(); err != nil {
+		util.Log(err)
+		if _, file, line, ok := runtime.Caller(3); ok {
+			util.Log("协程报错：%s:%d", file, line)
 		}
 	}
 }
