@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 	"time"
+	"websocket_server/runtime"
 	"websocket_server/util"
 )
 
@@ -223,6 +224,7 @@ func ReadWebSocketData(iweb IWebSocket) ([]byte, bool) {
 
 // 客户端写入数据逻辑处理
 func CreateClientWriteHandle(client IWebSocket) {
+	defer runtime.GoRecover()
 	for {
 		web := client.GetWebSocket()
 		writeData, b := <-web.WriteChannel
@@ -243,6 +245,7 @@ func CreateClientWriteHandle(client IWebSocket) {
 
 // 客户端读取数据逻辑处理
 func CreateClientHandle(iweb IWebSocket) {
+	defer runtime.GoRecover()
 	c := iweb.GetWebSocket()
 	defer c.Close()
 	defer iweb.OnUserOut()

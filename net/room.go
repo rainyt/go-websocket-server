@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"websocket_server/runtime"
 	"websocket_server/util"
 )
 
@@ -88,6 +89,7 @@ func (r *Room) kickOut(uid int) {
 
 // 房间的帧同步实现
 func onRoomFrame(r *Room) {
+	defer runtime.GoRecover()
 	for {
 		// app := r.master.getApp()
 		if !r.frameSync || r.isInvalidRoom() {
