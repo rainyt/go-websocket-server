@@ -7,6 +7,7 @@ import (
 	"net"
 	"reflect"
 	"time"
+	"websocket_server/logs"
 	"websocket_server/util"
 )
 
@@ -221,7 +222,7 @@ func (s *App) GetServerMsg(user *Client, newCounts int) {
 	if newCounts > s.msglist.Length() {
 		newCounts = s.msglist.Length()
 	}
-	util.Log("newCounts=", newCounts)
+	logs.InfoM("newCounts=", newCounts)
 	if newCounts == 0 {
 		// 返回空消息
 		return

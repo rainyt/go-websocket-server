@@ -2,7 +2,7 @@ package net
 
 import (
 	"sync"
-	"websocket_server/util"
+	"websocket_server/logs"
 )
 
 // 注册的用户数据
@@ -32,9 +32,9 @@ func (u *UserDataSQL) login(c *Client, openId string, userName string) *Register
 				r := user.client.room
 				r.ExitClient(user.client)
 				r.JoinClient(c)
-				util.Log("该用户[" + user.client.name + "]仍然在房间中，加入房间")
+				logs.InfoM("该用户[" + user.client.name + "]仍然在房间中，加入房间")
 			}
-			util.Log(user.client.name + "掉线处理")
+			logs.InfoM(user.client.name + "掉线处理")
 			user.client.SendError(LOGIN_OUT_ERROR, Login, "用户已在其他地方登录")
 			user.client.Close()
 			user.userName = userName

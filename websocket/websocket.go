@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 	"time"
+	"websocket_server/logs"
 	"websocket_server/runtime"
 	"websocket_server/util"
 )
@@ -89,7 +90,7 @@ func PrepareFrame(data []byte, opcode Opcode, isFinal bool, compress bool) util.
 		newdata.WriteBytes(data)
 	}
 	if compress {
-		util.Log("压缩传输")
+		logs.InfoM("压缩传输")
 	}
 	return newdata
 }
@@ -134,10 +135,10 @@ func ReadWebSocketData(iweb IWebSocket) ([]byte, bool) {
 		c.PartialLength = ((b1 >> 0) & 0x7F)
 		c.IsMasked = ((b1 >> 7) & 1) != 0
 
-		// util.Log("c.IsFinal=", c.IsFinal)
-		// util.Log("c.IsMasked=", c.IsMasked)
-		// util.Log("c.Opcode=", c.Opcode)
-		// util.Log("c.PartialLength=", c.PartialLength)
+		// logs.InfoM("c.IsFinal=", c.IsFinal)
+		// logs.InfoM("c.IsMasked=", c.IsMasked)
+		// logs.InfoM("c.Opcode=", c.Opcode)
+		// logs.InfoM("c.PartialLength=", c.PartialLength)
 		c.State = HeadExtraLength
 	case HeadExtraLength:
 		if c.PartialLength == 126 {
@@ -159,18 +160,18 @@ func ReadWebSocketData(iweb IWebSocket) ([]byte, bool) {
 		}
 		c.State = HeadExtraMask
 
-		// util.Log("c.Length=", c.Length)
+		// logs.InfoM("c.Length=", c.Length)
 	case HeadExtraMask:
 		if c.IsMasked {
 			if byteLength < 4 {
 				return nil, false
 			}
 			c.Mask = c.Data.ReadBytes(4)
-			// util.Log("c.mask=", c.mask)
+			// logs.InfoM("c.mask=", c.mask)
 		}
 		c.State = Body
 	case Body:
-		// util.Log("len=", byteLength, c.Length)
+		// logs.InfoM("len=", byteLength, c.Length)
 		if byteLength < c.Length {
 			return nil, false
 		}
@@ -207,7 +208,7 @@ func ReadWebSocketData(iweb IWebSocket) ([]byte, bool) {
 			c.LastPong = time.Now().Unix()
 		case Close:
 			data = ApplyMask(data, c.Mask)
-			util.Log("中断：", string(data))
+			logs.InfoM("中断：", string(data))
 			c.Close()
 		}
 		c.State = Head
@@ -236,7 +237,7 @@ func CreateClientWriteHandle(client IWebSocket) {
 		}
 		_, err := web.Write(writeData)
 		if err != nil {
-			util.Log("Error:" + err.Error())
+			logs.InfoF("Error:" + err.Error())
 			web.Connected = false
 			web.Close()
 		}
@@ -252,7 +253,7 @@ func CreateClientHandle(iweb IWebSocket) {
 	for {
 		// 每次客户端读取的数据长度
 		if !c.Connected {
-			util.Log("已断开链接")
+			logs.InfoM("已断开链接")
 			break
 		}
 		var bytes [128]byte
@@ -308,7 +309,7 @@ func OnData(iweb IWebSocket, data []byte) {
 		// todo 这里需要解析websocket的数据结构
 		data, ok := ReadWebSocketData(iweb)
 		if ok {
-			util.Log(string(data))
+			logs.InfoM(string(data))
 		}
 	}
 }
@@ -325,7 +326,7 @@ func handshake(iweb IWebSocket, content string) {
 		case "Sec-WebSocket-Extensions":
 			// 判断压缩是否开启
 			extensions = formatString(keys[1])
-			util.Log("extensions:" + extensions)
+			logs.InfoM("extensions:" + extensions)
 			// todo 待处理
 			// index := strings.Index(extensions, "permessage-deflate")
 			// if index == -1 {
@@ -340,7 +341,7 @@ func handshake(iweb IWebSocket, content string) {
 	if secWebSocketKey != "" {
 		// 同意握手时，返回信息
 		base := secWebSocketKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-		util.Log("secWebSocketKey=" + base)
+		logs.InfoM("secWebSocketKey=" + base)
 		t := sha1.New()
 		io.WriteString(t, base)
 		bs := t.Sum(nil)

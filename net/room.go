@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"websocket_server/logs"
 	"websocket_server/runtime"
 	"websocket_server/util"
 )
@@ -94,7 +95,7 @@ func onRoomFrame(r *Room) {
 		// app := r.master.getApp()
 		if !r.frameSync || r.isInvalidRoom() {
 			// 帧同步停止，或者房间已经不存在用户时
-			util.Log("房间停止帧同步")
+			logs.InfoM("房间停止帧同步")
 			// 并将所有用户移除
 			// for _, v := range r.users.List {ove
 			// app.ExitRoom(v.(*Client))
@@ -154,7 +155,7 @@ func (r *Room) StartFrameSync() {
 	if r.frameSync {
 		return
 	}
-	util.Log("StartFrameSync")
+	logs.InfoM("StartFrameSync")
 	r.frameSync = true
 	r.lock = true
 	// 所有人都要接收这个字节，确保帧同步启动
@@ -169,7 +170,7 @@ func (r *Room) StopFrameSync() {
 	r.frameSync = false
 	r.lock = false
 	r.cacheId = 0
-	util.Log("StopFrameSync")
+	logs.InfoM("StopFrameSync")
 }
 
 // 给房间的所有用户发送消息
@@ -192,7 +193,7 @@ func (r *Room) SendToAllUserOp(data *ClientMessage, igoneClient *Client) {
 func (r *Room) JoinClient(client *Client) {
 	if client.room == nil {
 		r.users.Push(client)
-		util.Log(client.name, "加入房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
+		logs.InfoM(client.name, "加入房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 		client.room = r
 		client.SendToUserOp(&ClientMessage{
 			Op:   GetRoomData,
@@ -240,7 +241,7 @@ func (r *Room) ExitClient(client *Client) {
 				// 通知更新房间信息
 				r.onRoomChanged()
 
-				util.Log(client.name, "：离开房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
+				logs.InfoM(client.name, "：离开房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 			}
 		}
 	}

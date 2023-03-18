@@ -1,6 +1,7 @@
 package net
 
 import (
+	"websocket_server/logs"
 	"websocket_server/util"
 )
 
@@ -66,14 +67,14 @@ func (m *Matchs) mathMatch(c *Client) {
 			mg.users.Push(c)
 			// 符合匹配人数时，则开始创建一个新的房间
 			if mg.option.Number == mg.users.Length() {
-				util.Log("匹配成功")
+				logs.InfoM("匹配成功")
 				// 创建一个匹配好的房间
 				room := c.getApp().CreateRoom(mg.users.List[0].(*Client), RoomConfigOption{
 					maxCounts: mg.option.Number,
 					password:  "",
 				})
 				if room == nil {
-					util.Log("匹配错误，房间不存在")
+					logs.InfoM("匹配错误，房间不存在")
 					return
 				}
 				otherClients := mg.users.List[1:]
@@ -101,9 +102,9 @@ func (m *Matchs) mathMatch(c *Client) {
 
 // 匹配客户端用户
 func (o *MatchOption) matchClient(c *Client) bool {
-	util.Log("[matchClient]")
+	logs.InfoM("[matchClient]")
 	if c.matchOption == nil {
-		util.Log("用户没有匹配参数")
+		logs.InfoM("用户没有匹配参数")
 		return false
 	}
 	// 需先验证Key是否一致，或者无要求
@@ -117,24 +118,24 @@ func (o *MatchOption) matchClient(c *Client) bool {
 					i, b2 := v.(int)
 					if b2 {
 						if !(mr.Min <= i && i <= mr.Max) {
-							util.Log("匹配验证错误：范围值不匹配")
+							logs.InfoM("匹配验证错误：范围值不匹配")
 							return false
 						}
 					} else {
-						util.Log("匹配验证错误：无法获取" + k + "比较参数")
+						logs.InfoM("匹配验证错误：无法获取" + k + "比较参数")
 						return false
 					}
 				} else {
-					util.Log("匹配验证错误：range不匹配")
+					logs.InfoM("匹配验证错误：range不匹配")
 					return false
 				}
 			}
 		} else {
-			util.Log("匹配验证错误：房间人数不匹配")
+			logs.InfoM("匹配验证错误：房间人数不匹配")
 			return false
 		}
 	} else {
-		util.Log("匹配验证错误：key不匹配")
+		logs.InfoM("匹配验证错误：key不匹配")
 		return false
 	}
 	return true

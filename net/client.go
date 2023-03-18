@@ -5,6 +5,7 @@ import (
 	"net"
 	"runtime"
 	"time"
+	"websocket_server/logs"
 	"websocket_server/util"
 	"websocket_server/websocket"
 )
@@ -118,7 +119,7 @@ func (c *Client) SendToUser(data []byte) {
 	// 使用线程发送
 	if c.Connected {
 		if len(c.WriteChannel) == cap(c.WriteChannel) {
-			util.Log("用户缓存已超出最大值，中断处理")
+			logs.InfoM("用户缓存已超出最大值，中断处理")
 			c.Connected = false
 			c.Close()
 			return
@@ -130,7 +131,7 @@ func (c *Client) SendToUser(data []byte) {
 			c.Connected = false
 			c.Close()
 		default:
-			util.Log("发送数据渠道已关闭")
+			logs.InfoM("发送数据渠道已关闭")
 		}
 	}
 }
@@ -157,7 +158,7 @@ func (c *Client) OnUserOut() {
 	// 如果存在房间时，则需要退出房间
 	c.Connected = false
 	if c.room != nil {
-		util.Log("用户" + c.name + "退出房间")
+		logs.InfoM("用户" + c.name + "退出房间")
 		// 如果房间存在，而且房间没有锁定时，离线则可以直接退出房间
 		if c.room.isInvalidRoom() {
 			// 如果是已经无效的房间，则全部移除
@@ -226,7 +227,7 @@ func CreateClient(c net.Conn) *Client {
 	client.State = websocket.Handshake
 	client.WriteChannel = make(chan []byte, 1024)
 	// 创建Handle绑定
-	util.Log("线程数量：", runtime.NumGoroutine())
+	logs.InfoM("线程数量：", runtime.NumGoroutine())
 	go websocket.CreateClientHandle(client)
 	go websocket.CreateClientWriteHandle(client)
 	return client

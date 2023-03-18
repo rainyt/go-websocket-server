@@ -3,7 +3,7 @@ package net
 import (
 	"fmt"
 	"strings"
-	"websocket_server/util"
+	"websocket_server/logs"
 	"websocket_server/websocket"
 )
 
@@ -17,7 +17,7 @@ func (s *ServerClient) onMessage() {
 			// fmt.Println(string(s.data.Data))
 			// todo 这里需要做连接验证
 			s.state = websocket.Head
-			util.Log(s.ip + ":" + fmt.Sprint(s.port) + " connected")
+			logs.InfoM(s.ip + ":" + fmt.Sprint(s.port) + " connected")
 		}
 	} else {
 		// 读取websocket交互包

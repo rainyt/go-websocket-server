@@ -3,6 +3,7 @@ package net
 import (
 	"encoding/json"
 	"fmt"
+	"websocket_server/logs"
 	"websocket_server/util"
 )
 
@@ -44,7 +45,7 @@ func (c *Client) OnMessage(data []byte) {
 					c.getApp().users.Push(c)
 					// 只需要用户名和OpenId即可登陆
 					userData := c.getApp().usersSQL.login(c, openId.(string), userName.(string))
-					util.Log("登陆成功：", openId.(string), userData)
+					logs.InfoM("登陆成功：", openId.(string), userData)
 					c.SendToUserOp(&ClientMessage{
 						Op: Login,
 						Data: map[string]any{
@@ -75,7 +76,7 @@ func (c *Client) OnMessage(data []byte) {
 			}
 			// 创建一个房间
 			room := c.getApp().CreateRoom(c, RoomConfigOption{})
-			util.Log("开始创建房间", room)
+			logs.InfoM("开始创建房间", room)
 			if room != nil {
 				// 创建成功
 				c.SendToUserOp(&ClientMessage{
@@ -487,7 +488,7 @@ func (c *Client) OnMessage(data []byte) {
 			page := util.GetMapValueToInt(message.Data, "page")
 			counts := util.GetMapValueToInt(message.Data, "counts")
 			data := c.getApp().GetRoomList(page, counts)
-			util.Log("appid=", c.appid)
+			logs.InfoM("appid=", c.appid)
 			if data != nil {
 				c.SendToUserOp(&ClientMessage{
 					Op: GetRoomList,

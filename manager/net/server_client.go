@@ -5,6 +5,7 @@ import (
 	"net"
 	"strings"
 	"time"
+	"websocket_server/logs"
 	"websocket_server/runtime"
 	"websocket_server/util"
 	"websocket_server/websocket"
@@ -22,7 +23,7 @@ type ServerClient struct {
 // 服务器联系逻辑
 func onServerClient(s *ServerClient) {
 	defer runtime.GoRecover()
-	util.Log("ServerClient create:" + s.ip + ":" + fmt.Sprint(s.port))
+	logs.InfoM("ServerClient create:" + s.ip + ":" + fmt.Sprint(s.port))
 	for {
 		// 预判conn连接
 		if s.Conn == nil {
@@ -48,7 +49,7 @@ func onServerClient(s *ServerClient) {
 				// 发送握手事件
 				contentData := strings.Join(content, "\r\n") + "\r\n\r\n"
 				s.Conn.Write([]byte(contentData))
-				util.Log("listene server " + s.ip + ":" + fmt.Sprint(s.port))
+				logs.InfoM("listene server " + s.ip + ":" + fmt.Sprint(s.port))
 			}
 		} else {
 			// 数据读取
@@ -62,7 +63,7 @@ func onServerClient(s *ServerClient) {
 				}
 			} else {
 				// 与服务器断开了连接，设置为nil，使服务侦听进行重连处理
-				util.Log("服务器已断开，准备重试重连")
+				logs.InfoM("服务器已断开，准备重试重连")
 				s.Conn.Close()
 				s.data = util.CreateBytes()
 				s.state = websocket.Handshake
