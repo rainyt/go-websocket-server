@@ -18,7 +18,7 @@ var (
 
 func init() {
 	flag.Parse()
-	logs.InitLogger("./console.log", zap.DebugLevel, *model == "debug")
+	logs.InitLogger("./logs.log", zap.DebugLevel, *model == "debug")
 	logs.InfoF("启动参数, port = %d, ip = %s\n", *port, *ip)
 }
 
