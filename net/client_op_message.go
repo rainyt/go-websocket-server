@@ -164,6 +164,22 @@ func (c *Client) OnMessage(data []byte) {
 			} else {
 				c.SendError(UPLOAD_FRAME_ERROR, message.Op, "上传帧同步数据错误")
 			}
+		case SendToUser:
+			// 仅给某个玩家转发某些信息
+			id := util.GetMapValueToInt(message.Data, "uid")
+			data := util.GetMapValueToAny(message.Data, "data")
+			user := c.getApp().usersSQL.GetUserDataByUid(id)
+			if user != nil && user.client != nil {
+				user.client.SendToUserOp(&ClientMessage{
+					Op: UserMessage,
+					Data: map[string]any{
+						"uid":  c.uid,
+						"data": data,
+					},
+				})
+			} else {
+				c.SendError(OP_ERROR, message.Op, "当前用户不在线")
+			}
 		case RoomMessage:
 			// 转发房间信息
 			if c.room != nil {
@@ -182,6 +198,12 @@ func (c *Client) OnMessage(data []byte) {
 			} else {
 				c.SendError(SEND_ROOM_ERROR, message.Op, "房间不存在")
 			}
+		case CannelMatchUser:
+			// 取消匹配用户
+			c.getApp().matchs.cannelMatchUser(c)
+			c.SendToUserOp(&ClientMessage{
+				Op: CannelMatchUser,
+			})
 		case MatchUser:
 			if c.room != nil {
 				c.SendError(MATCH_ERROR, message.Op, "已在房间中，无法匹配")
@@ -488,7 +510,6 @@ func (c *Client) OnMessage(data []byte) {
 			page := util.GetMapValueToInt(message.Data, "page")
 			counts := util.GetMapValueToInt(message.Data, "counts")
 			data := c.getApp().GetRoomList(page, counts)
-			logs.InfoM("appid=", c.appid)
 			if data != nil {
 				c.SendToUserOp(&ClientMessage{
 					Op: GetRoomList,

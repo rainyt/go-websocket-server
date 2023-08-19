@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"runtime"
+	"sync"
 	"time"
 	"websocket_server/logs"
 	"websocket_server/util"
@@ -57,6 +58,9 @@ const (
 	GetUserDataByUID        ClientAction = 40 // 通过UID获取用户数据
 	GetServerOldMsg         ClientAction = 41 // 获取全服历史消息
 	ExtendsCall             ClientAction = 42 // 调用扩展方法
+	CannelMatchUser         ClientAction = 43 // 取消匹配用户
+	SendToUser              ClientAction = 44 // 发送消息给用户
+	UserMessage             ClientAction = 45 // 接收到用户独立消息内容
 )
 
 type ClientMessage struct {
@@ -100,6 +104,7 @@ type Client struct {
 	name                string         // 用户名称
 	matchOption         *MatchOption   // 房间匹配参数
 	appid               string         // 绑定的AppId
+	sendLock            sync.Mutex     // 发送消息锁定
 }
 
 // 发送数据给所有人
@@ -139,6 +144,7 @@ func (c *Client) SendToUser(data []byte) {
 // 发送客户端数据到当前用户
 func (c *Client) SendToUserOp(data *ClientMessage) {
 	if data != nil {
+		c.sendLock.Lock()
 		// 指针会有nil丢失的情况，保护数据
 		var value ClientMessage = ClientMessage{
 			Op:   data.Op,
@@ -146,10 +152,10 @@ func (c *Client) SendToUserOp(data *ClientMessage) {
 		}
 		v, err := json.Marshal(value)
 		if err == nil {
-			// 发送
 			bdata := websocket.PrepareFrame(v, websocket.Text, true, c.Compress)
 			c.SendToUser(bdata.Data)
 		}
+		c.sendLock.Unlock()
 	}
 }
 

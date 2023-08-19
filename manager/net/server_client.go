@@ -48,12 +48,16 @@ func onServerClient(s *ServerClient) {
 				}
 				// 发送握手事件
 				contentData := strings.Join(content, "\r\n") + "\r\n\r\n"
+				// 15秒超时
+				s.Conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
 				s.Conn.Write([]byte(contentData))
 				logs.InfoM("listene server " + s.ip + ":" + fmt.Sprint(s.port))
 			}
 		} else {
 			// 数据读取
 			var bytes [126]byte
+			// 15秒超时
+			s.Conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 			n, err := s.Conn.Read(bytes[:])
 			if err == nil {
 				if n != 0 {

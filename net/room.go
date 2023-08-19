@@ -97,7 +97,7 @@ func onRoomFrame(r *Room) {
 			// 帧同步停止，或者房间已经不存在用户时
 			logs.InfoM("房间停止帧同步")
 			// 并将所有用户移除
-			// for _, v := range r.users.List {ove
+			// for _, v := range r.users.List {
 			// app.ExitRoom(v.(*Client))
 			// }
 			break
