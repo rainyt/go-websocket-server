@@ -113,8 +113,8 @@ func (o *MatchOption) matchClient(c *Client) bool {
 		if o.Number == c.matchOption.Number {
 			// 参数验证
 			for k, mr := range o.Range {
-				v, b := c.userData[k]
-				if b {
+				v := c.userData.GetData(k, nil)
+				if v != nil {
 					i, b2 := v.(int)
 					if b2 {
 						if !(mr.Min <= i && i <= mr.Max) {

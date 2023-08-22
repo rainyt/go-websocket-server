@@ -239,7 +239,7 @@ func (c *Client) OnMessage(data []byte) {
 					keys = append(keys, k)
 				}
 				for _, v := range keys {
-					c.userData[v] = obj[v]
+					c.userData.Store(v, obj[v])
 				}
 				c.SendToUserOp(&ClientMessage{
 					Op: UpdateUserData,

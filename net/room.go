@@ -259,13 +259,13 @@ func (r *Room) GetRoomData() any {
 	}
 	data["users"] = users.List
 	data["max"] = r.option.maxCounts
-	data["data"] = r.customData.Data
-	data["state"] = r.roomState.Data.Data
+	data["data"] = r.customData.Copy()
+	data["state"] = r.roomState.Data.Copy()
 	var state map[int]any = map[int]any{}
 	r.userStateLock.Lock()
 	for k, cs := range r.userState {
 		if cs != nil {
-			state[k] = cs.Data.Data
+			state[k] = cs.Data.Copy()
 		}
 	}
 	r.userStateLock.Unlock()

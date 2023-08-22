@@ -3,7 +3,6 @@ package net
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net"
 	"reflect"
 	"time"
@@ -70,7 +69,7 @@ func (s *Server) Register(extendsApi any) {
 	for i := 0; i < val.NumMethod(); i++ {
 		method := t.Method(i)
 		id := tName + "." + method.Name
-		log.Println("Register:", id)
+		logs.InfoM("Register:", id)
 		switch method.Name {
 		case "OnClosed":
 			// 特定接口
@@ -149,8 +148,8 @@ func (s *Server) PushUser(c *Client) {
 
 // 获取App对象
 func (s *Server) getApp(appid string) *App {
-	app, b := s.apps.Data[appid]
-	if !b {
+	app := s.apps.GetData(appid, nil)
+	if app == nil {
 		app = &App{}
 		app.(*App).initApp()
 		s.apps.Store(appid, app)

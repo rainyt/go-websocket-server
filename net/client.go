@@ -96,15 +96,15 @@ const (
 )
 
 type Client struct {
-	websocket.WebSocket                // WebSocket基础类
-	room                *Room          // 房间（每个用户只会进入到一个房间中）
-	userData            map[string]any // 用户自定义数据
-	frames              *util.Array    // 用户帧同步缓存操作
-	uid                 int            // 用户ID
-	name                string         // 用户名称
-	matchOption         *MatchOption   // 房间匹配参数
-	appid               string         // 绑定的AppId
-	sendLock            sync.Mutex     // 发送消息锁定
+	websocket.WebSocket              // WebSocket基础类
+	room                *Room        // 房间（每个用户只会进入到一个房间中）
+	userData            *util.Map    // 用户自定义数据
+	frames              *util.Array  // 用户帧同步缓存操作
+	uid                 int          // 用户ID
+	name                string       // 用户名称
+	matchOption         *MatchOption // 房间匹配参数
+	appid               string       // 绑定的AppId
+	sendLock            sync.Mutex   // 发送消息锁定
 }
 
 // 发送数据给所有人
@@ -211,7 +211,7 @@ func (c *Client) GetUserData() any {
 	data := map[string]any{}
 	data["uid"] = c.uid
 	data["name"] = c.name
-	data["data"] = c.userData
+	data["data"] = c.userData.Copy()
 	return data
 }
 
@@ -223,7 +223,7 @@ func (c *Client) GetRegisterUserData() *RegisterUserData {
 // 创建客户端对象
 func CreateClient(c net.Conn) *Client {
 	client := &Client{
-		userData: map[string]any{},
+		userData: util.CreateMap(),
 		frames:   util.CreateArray(),
 	}
 	client.Connected = true
