@@ -412,6 +412,7 @@ func (c *Client) OnMessage(data []byte) {
 						keys = append(keys, k)
 					}
 					c.room.userStateLock.Lock()
+					defer c.room.userStateLock.Unlock()
 					u, e := c.room.userState[c.uid]
 					if !e || u == nil {
 						u = &ClientState{
@@ -422,7 +423,6 @@ func (c *Client) OnMessage(data []byte) {
 						u.Data.Store(v, m[v])
 					}
 					c.room.userState[c.uid] = u
-					c.room.userStateLock.Unlock()
 					// 需要把更改数据下发给其他的所有人
 					c.room.SendToAllUserOp(&ClientMessage{
 						Op: ClientStateUpdate,

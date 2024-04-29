@@ -145,6 +145,7 @@ func (c *Client) SendToUser(data []byte) {
 func (c *Client) SendToUserOp(data *ClientMessage) {
 	if data != nil {
 		c.sendLock.Lock()
+		defer c.sendLock.Unlock()
 		// 指针会有nil丢失的情况，保护数据
 		var value ClientMessage = ClientMessage{
 			Op:   data.Op,
@@ -155,7 +156,6 @@ func (c *Client) SendToUserOp(data *ClientMessage) {
 			bdata := websocket.PrepareFrame(v, websocket.Text, true, c.Compress)
 			c.SendToUser(bdata.Data)
 		}
-		c.sendLock.Unlock()
 	}
 }
 

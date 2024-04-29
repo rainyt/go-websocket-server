@@ -231,8 +231,8 @@ func (r *Room) ExitClient(client *Client) {
 				}
 				// 需要将状态清空
 				r.userStateLock.Lock()
+				defer r.userStateLock.Unlock()
 				r.userState[client.uid] = nil
-				r.userStateLock.Unlock()
 				// 同步退出用户信息
 				r.SendToAllUserOp(&ClientMessage{
 					Op:   ExitRoomClient,
@@ -263,12 +263,12 @@ func (r *Room) GetRoomData() any {
 	data["state"] = r.roomState.Data.Copy()
 	var state map[int]any = map[int]any{}
 	r.userStateLock.Lock()
+	defer r.userStateLock.Unlock()
 	for k, cs := range r.userState {
 		if cs != nil {
 			state[k] = cs.Data.Copy()
 		}
 	}
-	r.userStateLock.Unlock()
 	data["usersState"] = state
 	return data
 }

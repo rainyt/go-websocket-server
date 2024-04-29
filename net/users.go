@@ -23,6 +23,7 @@ type UserDataSQL struct {
 // 登陆角色
 func (u *UserDataSQL) login(c *Client, openId string, userName string) *RegisterUserData {
 	u.lock.Lock()
+	defer u.lock.Unlock()
 	user, err := u.users[openId]
 	if err {
 		// 用户曾经登陆过，需要检测用户是否在线，否则会发生挤出的事件
@@ -51,7 +52,6 @@ func (u *UserDataSQL) login(c *Client, openId string, userName string) *Register
 	user.client = c
 	c.uid = user.uid
 	c.name = user.userName
-	u.lock.Unlock()
 	return u.users[openId]
 }
 

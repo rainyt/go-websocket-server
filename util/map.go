@@ -12,8 +12,8 @@ type Map struct {
 
 func (m *Map) Copy() map[string]any {
 	m.lock.Lock()
+	defer m.lock.Unlock()
 	v, err := json.Marshal(m.data)
-	m.lock.Unlock()
 	if err != nil {
 		return nil
 	}
