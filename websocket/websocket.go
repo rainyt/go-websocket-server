@@ -240,6 +240,7 @@ func CreateClientWriteHandle(client IWebSocket) {
 			logs.InfoF("Error:" + err.Error())
 			web.Connected = false
 			web.Close()
+			break
 		}
 	}
 }
@@ -263,6 +264,8 @@ func CreateClientHandle(iweb IWebSocket) {
 		// }
 		n, e := c.Read(bytes[:])
 		if e != nil {
+			c.Connected = false
+			c.Close()
 			break
 		}
 		if n == 0 {
