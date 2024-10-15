@@ -34,14 +34,14 @@ func CreateMap() *Map {
 
 func (m *Map) Store(key string, data any) {
 	m.lock.Lock()
+	defer m.lock.Unlock()
 	m.data[key] = data
-	m.lock.Unlock()
 }
 
 func (m *Map) GetData(key string, data any) any {
 	m.lock.Lock()
+	defer m.lock.Unlock()
 	v, b := m.data[key]
-	m.lock.Unlock()
 	if b {
 		return v
 	}

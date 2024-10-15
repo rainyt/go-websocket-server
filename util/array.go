@@ -1,6 +1,8 @@
 package util
 
-import "sync"
+import (
+	"sync"
+)
 
 type Array struct {
 	lock sync.Mutex
@@ -16,8 +18,8 @@ func CreateArray() *Array {
 // 添加数组
 func (a *Array) Push(o any) {
 	a.lock.Lock()
+	defer a.lock.Unlock()
 	a.List = append(a.List, o)
-	a.lock.Unlock()
 }
 
 // 从数组中删除
