@@ -343,7 +343,6 @@ type RoomInfo struct {
 func (s *App) GetRoomList(page int, counts int) any {
 	len := s.rooms.Length()
 	allpage := int(len/counts) + 1
-	fmt.Println("查询房间page=" + fmt.Sprint(page) + "allpage=" + fmt.Sprint(allpage))
 	roomLen := s.rooms.Length()
 	if page > 0 && page <= allpage && roomLen > 0 {
 		// 开始截取的位置

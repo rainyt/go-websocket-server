@@ -1,6 +1,7 @@
 package net
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -125,16 +126,21 @@ func onRoomFrame(r *Room) {
 		r.cacheId++
 		r.frameDatas.Push(frameData)
 
-		// 发送帧数据到客户端
-		for _, v := range r.users.List {
-			c := v.(*Client)
-			c.SendToUserOp(&ClientMessage{
-				Op: FData,
-				Data: map[string]any{
-					"t": r.cacheId,
-					"d": frameData,
-				},
-			})
+		frameDataJsonString, err := json.Marshal(frameData)
+		if err == nil {
+			// 发送帧数据到客户端
+			for _, v := range r.users.List {
+				c := v.(*Client)
+				var newJson any
+				json.Unmarshal(frameDataJsonString, &newJson)
+				c.SendToUserOp(&ClientMessage{
+					Op: FData,
+					Data: map[string]any{
+						"t": r.cacheId,
+						"d": newJson,
+					},
+				})
+			}
 		}
 		// 帧同步发送间隔
 		time.Sleep(r.interval)
