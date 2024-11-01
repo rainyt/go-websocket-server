@@ -1,10 +1,11 @@
 package net
 
 import (
-	"encoding/json"
 	"fmt"
 	"websocket_server/logs"
 	"websocket_server/util"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 // 消息处理
@@ -13,6 +14,7 @@ func (c *Client) OnMessage(data []byte) {
 	message := &ClientMessage{}
 	var err error
 	// 如果是二进制数据，则需要解析处理，第一位是op操作符，剩余的是内容
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
 	if c.FrameIsBinary {
 		op := ClientAction(data[0])
 		content := data[1:]
