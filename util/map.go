@@ -7,13 +7,13 @@ import (
 
 type Map struct {
 	lock sync.Mutex
-	data map[string]any
+	Data map[string]any
 }
 
 func (m *Map) Copy() map[string]any {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	v, err := json.Marshal(m.data)
+	v, err := json.Marshal(m.Data)
 	if err != nil {
 		return nil
 	}
@@ -28,24 +28,18 @@ func (m *Map) Copy() map[string]any {
 
 func CreateMap() *Map {
 	return &Map{
-		data: map[string]any{},
+		Data: map[string]any{},
 	}
 }
 
 func (m *Map) Store(key string, data any) {
 	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.data[key] = data
+	m.Data[key] = data
+	m.lock.Unlock()
 }
 
 func (m *Map) GetData(key string, data any) any {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	v, b := m.data[key]
-	if b {
-		return v
-	}
-	return data
+	return m.Data[key]
 }
 
 func GetMapValueToInt(data any, key string) int {

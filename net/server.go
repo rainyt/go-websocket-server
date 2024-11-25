@@ -1,13 +1,16 @@
 package net
 
 import (
-	"crypto/tls"
 	"fmt"
-	"net"
+	"net/http"
 	"reflect"
 	"time"
 	"websocket_server/logs"
 	"websocket_server/util"
+	"websocket_server/websocketv2"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 var CurrentServer *Server
@@ -98,47 +101,49 @@ func (s *Server) InitServer() {
 
 // 开始侦听WebSocket服务器（ws）
 func (s *Server) Listen(ip string, port int) {
+	s.InitServer()
 	fmt.Println("[WS]Server start:" + ip + ":" + fmt.Sprint(port))
-	n, e := net.Listen("tcp", ip+":"+fmt.Sprint(port))
-	if e != nil {
-		fmt.Println(e.Error())
-	}
-	for {
-		c, e := n.Accept()
-		if e == nil {
-			// TODO 当连接人数大于服务器最大限制人数后，直接中断
-			// if s.ConnectCounts >= s.MaxConnectCounts {
-			// 	c.Close()
-			// 	return
-			// }
-			// s.ConnectCounts++
-			// 创建客户端
-			CreateClient(c)
-		}
-	}
+	go websocketv2.Init()
+	httpServer := gin.Default()
+	httpServer.Any("/", upgradeToWebsocket)
+	httpServer.GET("/hxonline", upgradeToWebsocket)
+	httpServer.GET("/hxonline/v2", upgradeToWebsocket)
+	err := httpServer.Run(ip + ":" + fmt.Sprint(port))
+	panic(err)
 }
 
 // 开始侦听TLS协议WebSocket服务器（wss）
 func (s *Server) ListenTLS(ip string, port int) {
 	s.InitServer()
-	c, e := tls.LoadX509KeyPair("tls.pem", "tls.key")
-	if e != nil {
-		panic(e)
+	fmt.Println("[WS]Server start:" + ip + ":" + fmt.Sprint(port))
+	go websocketv2.Init()
+	httpServer := gin.Default()
+	httpServer.Any("/", upgradeToWebsocket)
+	httpServer.GET("/hxonline", upgradeToWebsocket)
+	httpServer.GET("/hxonline/v2", upgradeToWebsocket)
+	err := httpServer.RunTLS(ip+":"+fmt.Sprint(port), "tls.pem", "tls.key")
+	panic(err)
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  0,
+	WriteBufferSize: 0,
+	// 解决跨域问题
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+// 将请求升级为WebSocket
+func upgradeToWebsocket(c *gin.Context) {
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		logs.ErrorM(err)
+		return
 	}
-	config := &tls.Config{Certificates: []tls.Certificate{c}}
-	fmt.Println("[WSS]Server start:" + ip + ":" + fmt.Sprint(port))
-	n, e := tls.Listen("tcp", ip+":"+fmt.Sprint(port), config)
-	if e != nil {
-		fmt.Println(e.Error())
-	}
-	for {
-		c, e := n.Accept()
-		if e == nil {
-			// 将用户写入到用户列表中
-			CreateClient(c)
-			// s.users.Push(CreateClient(c))
-		}
-	}
+	logs.InfoM("upgradeToWebsocket...")
+	client := websocketv2.CreateWebSocketClient(conn)
+	CreateClient(client)
 }
 
 // 追加用户
