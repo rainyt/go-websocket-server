@@ -1,11 +1,12 @@
 package net
 
 import (
-	"encoding/json"
 	"runtime"
 	"websocket_server/logs"
 	"websocket_server/util"
 	"websocket_server/websocketv2"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 type ClientAction int
@@ -131,7 +132,7 @@ func (c *Client) SendToUserOp(data *ClientMessage) {
 			Op:   data.Op,
 			Data: data.Data,
 		}
-		v, err := json.Marshal(value)
+		v, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(value)
 		if err == nil {
 			c.SendToUser(v)
 		}

@@ -1,8 +1,9 @@
 package util
 
 import (
-	"encoding/json"
 	"sync"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 type Map struct {
@@ -13,12 +14,12 @@ type Map struct {
 func (m *Map) Copy() map[string]any {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	v, err := json.Marshal(m.Data)
+	v, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(m.Data)
 	if err != nil {
 		return nil
 	}
 	map2 := &map[string]any{}
-	err2 := json.Unmarshal(v, map2)
+	err2 := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(v, map2)
 	if err2 == nil {
 		return *map2
 	} else {
@@ -90,9 +91,9 @@ func GetMapValueToString(data any, key string) string {
 }
 
 func SetJsonTo(data any, to any) bool {
-	j, b := json.Marshal(data)
+	j, b := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(data)
 	if b == nil {
-		e := json.Unmarshal(j, &to)
+		e := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(j, &to)
 		if e == nil {
 			return true
 		} else {
