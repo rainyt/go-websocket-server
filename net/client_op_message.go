@@ -14,16 +14,17 @@ func (c *Client) OnMessage(data []byte) {
 	message := &ClientMessage{}
 	var err error
 	// 如果是二进制数据，则需要解析处理，第一位是op操作符，剩余的是内容
-	if c.FrameIsBinary {
+	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(data, &message)
+	// 如果无法以JSON解析时，则使用二进制解析
+	if err != nil {
 		op := ClientAction(data[0])
 		content := data[1:]
 		message.Op = op
 		err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(content, &message.Data)
-	} else {
-		err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(data, &message)
 	}
 	if err == nil {
 		if c.uid == 0 || message.Op == Login {
+			logs.InfoM("onWork:", message.Op, message.Data)
 			switch message.Op {
 			case Login:
 				if c.uid == 0 {

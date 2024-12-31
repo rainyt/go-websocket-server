@@ -40,8 +40,6 @@ type WebSocket struct {
 
 	Connected bool
 
-	FrameIsBinary bool
-
 	// 是否已经关闭通道
 	isClosed bool
 
@@ -70,7 +68,7 @@ func (client *WebSocket) SendBytes(data []byte) {
 
 func CreateWebSocketClient(conn *websocket.Conn) *WebSocket {
 	client := &WebSocket{conn: conn, send: make(chan *MessageByte, 256), Connected: true, isClosed: false,
-		isReleased: false, isUnregister: false, FrameIsBinary: false,
+		isReleased: false, isUnregister: false,
 		userData: map[string]any{}, frames: util.CreateArray()}
 	go client.readMessage()
 	go client.writeMessage()
@@ -85,6 +83,7 @@ func (c *WebSocket) readMessage() {
 			data := &RegisterClient{
 				Client: c,
 			}
+			logs.InfoM("ready unregister", data.Client)
 			SERVER_HUB.unregister <- data
 			c.conn.Close()
 		}
@@ -115,12 +114,14 @@ func (c *WebSocket) writeMessage() {
 	ticker := time.NewTicker(pingPeriod)
 	defer runtime.GoRecover()
 	defer func() {
+		logs.InfoM("writeMessage stop.")
+		ticker.Stop()
 		if !c.isClosed {
 			c.isClosed = true
-			ticker.Stop()
 			data := &RegisterClient{
 				Client: c,
 			}
+			logs.InfoM("ready unregister", data.Client)
 			SERVER_HUB.unregister <- data
 			c.conn.Close()
 		}
@@ -167,6 +168,9 @@ func (c *WebSocket) writeMessage() {
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+			if c.isClosed {
 				return
 			}
 		}

@@ -65,6 +65,9 @@ func (r *Room) updateRoomData(data RoomConfigOption) {
 
 // 是否为无效房间
 func (r *Room) isInvalidRoom() bool {
+	if r == nil || r.users == nil || r.users.List == nil {
+		return true
+	}
 	hasOnline := false
 	for _, v := range r.users.List {
 		if v.(*Client).Connected {

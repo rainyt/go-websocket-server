@@ -48,7 +48,7 @@ func Init() {
 	for {
 		select {
 		case data := <-SERVER_HUB.unregister:
-			data.Client.OnUserOutCallback()
+			go data.Client.OnUserOutCallback()
 		}
 	}
 }
