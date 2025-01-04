@@ -147,9 +147,11 @@ func (c *Client) OnUserOut() {
 		logs.InfoM("用户" + c.name + "退出房间")
 		// 如果房间存在，而且房间没有锁定时，离线则可以直接退出房间
 		if c.room.isInvalidRoom() {
-			// 如果是已经无效的房间，则全部移除
-			for _, v := range c.room.users.List {
-				c.getApp().ExitRoom(v.(*Client))
+			if c.room == nil || c.room.users == nil || c.room.users.List == nil {
+				// 如果是已经无效的房间，则全部移除
+				for _, v := range c.room.users.List {
+					c.getApp().ExitRoom(v.(*Client))
+				}
 			}
 		} else if !c.room.lock {
 			c.getApp().ExitRoom(c)
