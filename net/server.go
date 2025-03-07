@@ -311,7 +311,7 @@ func (s *App) ExitRoom(c *Client) {
 	if c.room != nil {
 		room := c.room
 		c.room.ExitClient(c)
-		if room.users.Length() == 0 {
+		if room.users == nil || room.users.List == nil || room.users.Length() == 0 {
 			s.rooms.Remove(room)
 		}
 	}

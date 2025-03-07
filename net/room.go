@@ -227,7 +227,7 @@ func (r *Room) onRoomChanged() {
 
 // 用户退出
 func (r *Room) ExitClient(client *Client) {
-	if client.room != nil {
+	if client.room != nil && r.users != nil && r.users.List != nil {
 		if client.room.id == r.id {
 			r.users.Remove(client)
 			client.room = nil

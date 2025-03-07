@@ -152,6 +152,8 @@ func (c *Client) OnUserOut() {
 				for _, v := range c.room.users.List {
 					c.getApp().ExitRoom(v.(*Client))
 				}
+			} else {
+				c.getApp().ExitRoom(c)
 			}
 		} else if !c.room.lock {
 			c.getApp().ExitRoom(c)
