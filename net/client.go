@@ -59,6 +59,7 @@ const (
 	CannelMatchUser         ClientAction = 43 // 取消匹配用户
 	SendToUser              ClientAction = 44 // 发送消息给用户
 	UserMessage             ClientAction = 45 // 接收到用户独立消息内容
+	QueryRoomList           ClientAction = 46 // 查询房间列表
 )
 
 type ClientMessage struct {
@@ -142,19 +143,13 @@ func (c *Client) SendToUserOp(data *ClientMessage) {
 // 用户离线时触发
 func (c *Client) OnUserOut() {
 	// 如果存在房间时，则需要退出房间
+	logs.InfoM("用户" + c.name + ".OnUserOut")
 	c.Connected = false
 	if c.room != nil {
 		logs.InfoM("用户" + c.name + "退出房间")
 		// 如果房间存在，而且房间没有锁定时，离线则可以直接退出房间
 		if c.room.isInvalidRoom() {
-			if c.room == nil || c.room.users == nil || c.room.users.List == nil {
-				// 如果是已经无效的房间，则全部移除
-				for _, v := range c.room.users.List {
-					c.getApp().ExitRoom(v.(*Client))
-				}
-			} else {
-				c.getApp().ExitRoom(c)
-			}
+			c.getApp().TryExitRoom(c)
 		} else if !c.room.lock {
 			c.getApp().ExitRoom(c)
 		} else {
@@ -163,6 +158,7 @@ func (c *Client) OnUserOut() {
 				Op:   OutOnlineRoomClient,
 				Data: c.GetUserData(),
 			}, c)
+			c.getApp().TryExitRoom(c)
 		}
 		// 从服务器列表中删除
 	}

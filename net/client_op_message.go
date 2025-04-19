@@ -43,6 +43,7 @@ func (c *Client) OnMessage(data []byte) {
 						return
 					}
 					// 绑定AppId
+					logs.InfoM("准备登录：", openId.(string))
 					c.appid = appId
 					c.getApp().users.Push(c)
 					// 只需要用户名和OpenId即可登陆
@@ -487,6 +488,7 @@ func (c *Client) OnMessage(data []byte) {
 				c.matchOption = matchOption
 				r, err := c.getApp().MatchRoom(c)
 				if err == nil {
+					logs.InfoM("match room success", c.name)
 					c.SendToUserOp(&ClientMessage{
 						Op: MatchRoom,
 						Data: map[string]any{
@@ -495,6 +497,7 @@ func (c *Client) OnMessage(data []byte) {
 					)
 				} else {
 					// 当不存在匹配房间时，如果是自动创建房间时，则开始读取
+					logs.InfoM("match room success, create new room", c.name)
 					r2 := c.getApp().CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: ""})
 					r2.matchOption = matchOption
 					r2.JoinClient(c)
@@ -582,6 +585,22 @@ func (c *Client) OnMessage(data []byte) {
 				api.Call(c, message, util.GetMapValueToAny(message.Data, "d"))
 			} else {
 				c.SendError(OP_ERROR, message.Op, "无效扩展方法")
+			}
+		case QueryRoomList:
+			roomids := util.GetMapValueToAny(message.Data, "roomids").([]any)
+			if roomids != nil {
+				roomInfo := c.getApp().GetQueryRoomList(roomids)
+				if roomInfo == nil {
+					roomInfo = []any{}
+				}
+				c.SendToUserOp(&ClientMessage{
+					Op: QueryRoomList,
+					Data: map[string]any{
+						"list": roomInfo,
+					},
+				})
+			} else {
+				c.SendError(OP_ERROR, message.Op, "roomids参数错误")
 			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))

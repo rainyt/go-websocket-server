@@ -10,7 +10,7 @@ func GoRecover() {
 	if err := recover(); err != nil {
 		logs.InfoM(err)
 		if _, file, line, ok := runtime.Caller(3); ok {
-			logs.InfoF("协程报错：%s:%d", file, line)
+			logs.InfoM("协程报错：%s:%d", file, line)
 		}
 	}
 }

@@ -205,6 +205,7 @@ func (r *Room) JoinClient(client *Client) {
 		r.users.Push(client)
 		logs.InfoM(client.name, "加入房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 		client.room = r
+		logs.InfoM("发送房间消息给用户", client.name)
 		client.SendToUserOp(&ClientMessage{
 			Op:   GetRoomData,
 			Data: r.GetRoomData(),
@@ -216,6 +217,7 @@ func (r *Room) JoinClient(client *Client) {
 		}, client)
 		// 其他用户通知房间更新
 		r.onRoomChanged()
+		logs.InfoM("加入用户行为结束", client.name)
 	}
 }
 
@@ -254,6 +256,8 @@ func (r *Room) ExitClient(client *Client) {
 				logs.InfoM(client.name, "：离开房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 			}
 		}
+	} else {
+		client.getApp().rooms.Remove(r)
 	}
 }
 

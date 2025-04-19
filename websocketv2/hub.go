@@ -1,5 +1,7 @@
 package websocketv2
 
+import "websocket_server/logs"
+
 type RegisterClient struct {
 	// 客户端
 	Client *WebSocket
@@ -48,7 +50,10 @@ func Init() {
 	for {
 		select {
 		case data := <-SERVER_HUB.unregister:
-			go data.Client.OnUserOutCallback()
+			logs.InfoM("unregister", data.Client)
+			if data.Client.OnUserOutCallback != nil {
+				go data.Client.OnUserOutCallback()
+			}
 		}
 	}
 }

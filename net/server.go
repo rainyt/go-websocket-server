@@ -317,6 +317,38 @@ func (s *App) ExitRoom(c *Client) {
 	}
 }
 
+// 尝试退出房间
+func (s *App) TryExitRoom(c *Client) {
+	logs.InfoM("Try Exit Room, ready:", c.name)
+	if c.room != nil {
+		hasConnected := false
+		room := c.room
+		for _, v := range room.users.List {
+			client := v.(*Client)
+			if client != c && client.Connected {
+				logs.InfoM("Try Exit Room Exist Client...", client.name)
+				hasConnected = true
+				break
+			}
+		}
+		if !hasConnected {
+			// 所有人已经离开
+			var clients []*Client = []*Client{}
+			for _, v := range room.users.List {
+				client := v.(*Client)
+				clients = append(clients, client)
+			}
+			for _, v := range clients {
+				room.ExitClient(v)
+			}
+			s.rooms.Remove(room)
+			logs.InfoM("Try Exit Room...", room.id)
+		} else {
+			logs.InfoM("Try Exit Room fail, hasConnected.", room.id)
+		}
+	}
+}
+
 // 匹配房间
 func (s *App) MatchRoom(c *Client) (*Room, error) {
 	if c.room == nil {
@@ -342,12 +374,14 @@ type RoomInfo struct {
 	Password  bool   `json:"password"`  // 是否存在密码
 	Master    string `json:"master"`    // 房主名称
 	Lock      bool   `json:"lock"`      // 房间是否已锁定
+	Data      any    `json:"data"`      // 对应customData数据
 }
 
 // 获取指定范围的房间列表状态（仅返回房间当前人数、房间ID、是否有密码等基础信息）
 func (s *App) GetRoomList(page int, counts int) any {
 	len := s.rooms.Length()
 	allpage := int(len/counts) + 1
+	fmt.Println("查询房间page=" + fmt.Sprint(page) + "allpage=" + fmt.Sprint(allpage))
 	roomLen := s.rooms.Length()
 	if page > 0 && page <= allpage && roomLen > 0 {
 		// 开始截取的位置
@@ -369,10 +403,44 @@ func (s *App) GetRoomList(page int, counts int) any {
 					Password:  r.option.password != "",
 					Master:    r.master.name,
 					Lock:      r.lock,
+					Data:      r.customData.Copy(),
 				})
 			}
 			return arr
 		}
+	}
+	return nil
+}
+
+// 根据房间ID查询房间列表
+func (s *App) GetQueryRoomList(roomids []any) any {
+	hasId := func(id int) bool {
+		for _, v := range roomids {
+			// int 转 float64
+			if v.(float64) == float64(id) {
+				return true
+			}
+		}
+		return false
+	}
+	list := s.rooms.List
+	if list != nil {
+		arr := []RoomInfo{}
+		for _, v := range list {
+			r := v.(*Room)
+			if hasId(r.id) {
+				arr = append(arr, RoomInfo{
+					Id:        r.id,
+					Counts:    r.users.Length(),
+					MaxCounts: r.option.maxCounts,
+					Password:  r.option.password != "",
+					Master:    r.master.name,
+					Lock:      r.lock,
+					Data:      r.customData.Copy(),
+				})
+			}
+		}
+		return arr
 	}
 	return nil
 }
