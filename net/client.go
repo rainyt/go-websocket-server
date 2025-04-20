@@ -121,7 +121,7 @@ func (c *Client) getApp() *App {
 func (c *Client) SendToUser(data []byte) {
 	// 使用线程发送
 	if c.Connected {
-		c.SendBytes(data)
+		go c.SendBytes(data)
 	}
 }
 
@@ -191,7 +191,7 @@ func (c *Client) GetUserData() any {
 	data := map[string]any{}
 	data["uid"] = c.uid
 	data["name"] = c.name
-	data["data"] = c.userData
+	data["data"] = c.userData.Data
 	return data
 }
 

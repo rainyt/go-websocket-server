@@ -480,36 +480,37 @@ func (c *Client) OnMessage(data []byte) {
 			}
 		case MatchRoom:
 			// 匹配房间
+			logs.InfoM("match room user:", c.name, ",", message.Data)
 			if c.room != nil {
-				c.SendError(JOIN_ROOM_ERROR, message.Op, "你已经在房间中")
-			} else {
-				matchOption := &MatchOption{}
-				util.SetJsonTo(message.Data, matchOption)
-				c.matchOption = matchOption
-				r, err := c.getApp().MatchRoom(c)
-				if err == nil {
-					logs.InfoM("match room success", c.name)
-					c.SendToUserOp(&ClientMessage{
-						Op: MatchRoom,
-						Data: map[string]any{
-							"id": r.id,
-						}},
-					)
-				} else {
-					// 当不存在匹配房间时，如果是自动创建房间时，则开始读取
-					logs.InfoM("match room success, create new room", c.name)
-					r2 := c.getApp().CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: ""})
-					r2.matchOption = matchOption
-					r2.JoinClient(c)
-					c.SendToUserOp(&ClientMessage{
-						Op: MatchRoom,
-						Data: map[string]any{
-							"id": r2.id,
-						}},
-					)
-				}
-				c.matchOption = nil
+				logs.InfoM("match room fail, exsits room.", c.name)
+				c.room.ExitClient(c)
 			}
+			matchOption := &MatchOption{}
+			util.SetJsonTo(message.Data, matchOption)
+			c.matchOption = matchOption
+			r, err := c.getApp().MatchRoom(c)
+			if err == nil {
+				logs.InfoM("match room success", c.name)
+				c.SendToUserOp(&ClientMessage{
+					Op: MatchRoom,
+					Data: map[string]any{
+						"id": r.id,
+					}},
+				)
+			} else {
+				// 当不存在匹配房间时，如果是自动创建房间时，则开始读取
+				logs.InfoM("match room success, create new room", c.name)
+				r2 := c.getApp().CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: ""})
+				r2.matchOption = matchOption
+				r2.JoinClient(c)
+				c.SendToUserOp(&ClientMessage{
+					Op: MatchRoom,
+					Data: map[string]any{
+						"id": r2.id,
+					}},
+				)
+			}
+			c.matchOption = nil
 		case GetRoomList:
 			// 获取房间列表
 			page := util.GetMapValueToInt(message.Data, "page")
