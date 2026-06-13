@@ -226,6 +226,15 @@ func (r *Room) onRoomChanged() {
 func (r *Room) ExitClient(client *Client) {
 	if client.room != nil {
 		if client.room.id == r.id {
+			// 找出用户在房间中的座位
+			var seatIndex int = -1
+			for i, v := range r.users.List {
+				if v.(*Client).uid == client.uid {
+					seatIndex = i
+					break
+				}
+			}
+
 			r.users.Remove(client)
 			client.room = nil
 			if r.users.Length() == 0 {
@@ -245,6 +254,20 @@ func (r *Room) ExitClient(client *Client) {
 					Op:   ExitRoomClient,
 					Data: client.GetUserData(),
 				}, client)
+
+				// 如果退出的是参战方（座位0或1），通知所有成员取消角色选择
+				if seatIndex >= 0 && seatIndex <= 1 {
+					r.SendToAllUserOp(&ClientMessage{
+						Op: RoomMessage,
+						Data: map[string]any{
+							"uid": client.uid,
+							"data": map[string]any{
+								"type": "cancelRoleSelect",
+							},
+						},
+					}, nil)
+				}
+
 				// 通知更新房间信息
 				r.onRoomChanged()
 
