@@ -2,10 +2,10 @@ package net
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"runtime"
 	"sync"
-	"time"
 	"websocket_server/logs"
 	"websocket_server/util"
 	"websocket_server/websocket"
@@ -61,6 +61,7 @@ const (
 	CannelMatchUser         ClientAction = 43 // 取消匹配用户
 	SendToUser              ClientAction = 44 // 发送消息给用户
 	UserMessage             ClientAction = 45 // 接收到用户独立消息内容
+	StopFrameSyncWithoutUnlock ClientAction = 47 // 停止帧同步但不解锁房间（用于回合重置）
 )
 
 type ClientMessage struct {
@@ -129,14 +130,11 @@ func (c *Client) SendToUser(data []byte) {
 			c.Close()
 			return
 		}
+		// 非阻塞发送到 channel，避免阻塞和timer创建
 		select {
 		case c.WriteChannel <- data:
-		case <-time.After(5 * time.Second):
-			// 阻塞超时
-			c.Connected = false
-			c.Close()
 		default:
-			logs.InfoM("发送数据渠道已关闭")
+			// channel 满了，静默丢弃（不会永久阻塞）
 		}
 	}
 }
@@ -171,18 +169,29 @@ func (c *Client) OnUserOut() {
 			for _, v := range c.room.users.List {
 				c.getApp().ExitRoom(v.(*Client))
 			}
-		} else if !c.room.lock {
-			c.getApp().ExitRoom(c)
 		} else {
-			// 离线状态
-			c.room.SendToAllUserOp(&ClientMessage{
-				Op:   OutOnlineRoomClient,
-				Data: c.GetUserData(),
-			}, c)
+			// 无论房间是否锁定，都需要将用户从房间中移除
+			// 如果房间已锁定（游戏进行中），通知其他玩家该用户已离线
+			if c.room.lock {
+				c.room.SendToAllUserOp(&ClientMessage{
+					Op:   OutOnlineRoomClient,
+					Data: c.GetUserData(),
+				}, c)
+			}
+			// 将用户从房间中移除
+			c.getApp().ExitRoom(c)
 		}
 		// 从服务器列表中删除
 	}
 	c.getApp().users.Remove(c)
+	// 清理用户登录状态，防止下次登录时提示ID已被登录
+	if c.uid != 0 {
+		userData := c.getApp().usersSQL.GetUserDataByUid(c.uid)
+		if userData != nil && userData.client == c {
+			userData.client = nil
+			logs.InfoM("清理用户登录状态: uid=" + fmt.Sprint(c.uid))
+		}
+	}
 	// 从服务器消息侦听中删除
 	c.getApp().CannelListenerServerMsg(c)
 	// 从服务器匹配列表中取消

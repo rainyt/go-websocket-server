@@ -24,6 +24,14 @@ type UserDataSQL struct {
 func (u *UserDataSQL) login(c *Client, openId string, userName string) *RegisterUserData {
 	u.lock.Lock()
 	defer u.lock.Unlock()
+	// 检查是否有重名用户已在线
+	for _, rud := range u.users {
+		if rud.userName == userName && rud.client != nil {
+			logs.InfoM("用户名[" + userName + "]已被其他用户登录，拒绝登录")
+			c.SendError(LOGIN_ERROR, Login, "已有相同用户名登录")
+			return nil
+		}
+	}
 	user, err := u.users[openId]
 	if err {
 		// 用户曾经登陆过，需要检测用户是否在线，否则会发生挤出的事件

@@ -7,6 +7,7 @@ import (
 	"websocket_server/logs"
 	"websocket_server/runtime"
 	"websocket_server/util"
+	"websocket_server/websocket"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -91,6 +92,9 @@ func (r *Room) kickOut(uid int) {
 }
 
 // 房间的帧同步实现
+// 使用预分配的 JSON 编码器减少每帧的开销
+var jsonEncoder = jsoniter.ConfigCompatibleWithStandardLibrary
+
 func onRoomFrame(r *Room) {
 	defer runtime.GoRecover()
 	for {
@@ -120,27 +124,36 @@ func onRoomFrame(r *Room) {
 			if a != nil {
 				frameData[c.uid] = a
 			}
-			c.frames.List = []any{}
+			// 重用 slice 而不是创建新的，减少 GC 压力
+			c.frames.List = c.frames.List[:0]
 		}
 
 		// 缓存数据
 		r.cacheId++
 		r.frameDatas.Push(frameData)
-		var jsonNew = jsoniter.ConfigCompatibleWithStandardLibrary
-		frameDataJsonString, err := jsonNew.Marshal(frameData)
+
+		// 只做一次 JSON 序列化，然后广播给所有用户
+		// 注意：客户端期望的格式是 {op: 9, data: {t: ..., d: ...}}
+		_, err := jsonEncoder.Marshal(frameData)
 		if err == nil {
-			// 发送帧数据到客户端
+			// 构造完整的消息（包含 op 字段）
+			msgData := map[string]any{
+				"op": FData,
+				"data": map[string]any{
+					"t": r.cacheId,
+					"d": frameData, // 直接用原始数据，不做 unmarshal 再 marshal
+				},
+			}
+			msgBytes, _ := jsonEncoder.Marshal(msgData)
+
+			// 包装成 WebSocket 帧格式后发送
+			wsFrame := websocket.PrepareFrame(msgBytes, websocket.Text, true, false)
+			wsFrameData := wsFrame.Data
+
+			// 发送帧数据到所有客户端
 			for _, v := range r.users.List {
 				c := v.(*Client)
-				var newJson any
-				jsonNew.Unmarshal(frameDataJsonString, &newJson)
-				c.SendToUserOp(&ClientMessage{
-					Op: FData,
-					Data: map[string]any{
-						"t": r.cacheId,
-						"d": newJson,
-					},
-				})
+				c.SendToUser(wsFrameData)
 			}
 		}
 		// 帧同步发送间隔
@@ -173,11 +186,39 @@ func (r *Room) StartFrameSync() {
 }
 
 // 停止帧同步
-func (r *Room) StopFrameSync() {
+// unlock: 是否解锁房间，true为解锁（默认行为），false为不解锁（用于回合重置）
+func (r *Room) StopFrameSync(unlock ...bool) {
 	r.frameSync = false
-	r.lock = false
 	r.cacheId = 0
+	// 默认解锁房间，除非明确指定不解锁
+	if len(unlock) == 0 || unlock[0] {
+		r.lock = false
+	}
+	// 重置房间状态（玩家准备状态等）
+	r.resetRoomState()
 	logs.InfoM("StopFrameSync")
+}
+
+// 停止帧同步但保持房间锁定（用于回合重置时）
+func (r *Room) StopFrameSyncWithoutUnlock() {
+	r.StopFrameSync(false)
+}
+
+// 重置房间状态
+func (r *Room) resetRoomState() {
+	r.roomState = &ClientState{
+		Data: util.CreateMap(),
+	}
+	r.userState = map[int]*ClientState{}
+}
+
+// 重置房间并广播给所有玩家（三局两胜结束时调用）
+func (r *Room) ResetRoomAndBroadcast() {
+	r.resetRoomState()
+	r.SendToAllUserOp(&ClientMessage{
+		Op: ResetRoom,
+	}, nil)
+	logs.InfoM("ResetRoomAndBroadcast")
 }
 
 // 给房间的所有用户发送消息
@@ -255,7 +296,7 @@ func (r *Room) ExitClient(client *Client) {
 					Data: client.GetUserData(),
 				}, client)
 
-				// 如果退出的是参战方（座位0或1），通知所有成员取消角色选择
+				// 如果退出的是参战方（座位0或1），通知所有成员取消角色选择并解锁房间
 				if seatIndex >= 0 && seatIndex <= 1 {
 					r.SendToAllUserOp(&ClientMessage{
 						Op: RoomMessage,
@@ -266,6 +307,14 @@ func (r *Room) ExitClient(client *Client) {
 							},
 						},
 					}, nil)
+					// 解锁房间，允许其他玩家加入
+					if r.lock {
+						r.lock = false
+						r.SendToAllUserOp(&ClientMessage{
+							Op: UnlockRoom,
+							Data: nil,
+						}, nil)
+					}
 				}
 
 				// 通知更新房间信息
@@ -291,6 +340,7 @@ func (r *Room) GetRoomData() any {
 	data["max"] = r.option.maxCounts
 	data["data"] = r.customData.Copy()
 	data["state"] = r.roomState.Data.Copy()
+	data["lock"] = r.lock // 添加房间锁定状态
 	var state map[int]any = map[int]any{}
 	r.userStateLock.Lock()
 	defer r.userStateLock.Unlock()

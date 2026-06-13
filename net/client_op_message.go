@@ -47,6 +47,9 @@ func (c *Client) OnMessage(data []byte) {
 					c.getApp().users.Push(c)
 					// 只需要用户名和OpenId即可登陆
 					userData := c.getApp().usersSQL.login(c, openId.(string), userName.(string))
+					if userData == nil {
+						return
+					}
 					logs.InfoM("登陆成功：", openId.(string), userData)
 					c.SendToUserOp(&ClientMessage{
 						Op: Login,
@@ -148,6 +151,16 @@ func (c *Client) OnMessage(data []byte) {
 				c.room.StopFrameSync()
 				c.SendToUserOp(&ClientMessage{
 					Op: StopFrameSync,
+				})
+			} else {
+				c.SendError(STOP_FRAME_SYNC_ERROR, message.Op, "房间不存在，无法停止帧同步")
+			}
+		case StopFrameSyncWithoutUnlock:
+			// 停止帧同步但保持房间锁定（用于回合重置）
+			if c.room != nil {
+				c.room.StopFrameSyncWithoutUnlock()
+				c.SendToUserOp(&ClientMessage{
+					Op: StopFrameSyncWithoutUnlock,
 				})
 			} else {
 				c.SendError(STOP_FRAME_SYNC_ERROR, message.Op, "房间不存在，无法停止帧同步")
@@ -516,18 +529,10 @@ func (c *Client) OnMessage(data []byte) {
 			if c.room == nil {
 				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
 			} else {
-				// 停止帧同步，同时清空帧缓存
+				// 停止帧同步，同时清空帧缓存，重置房间状态并广播给所有玩家
 				c.room.StopFrameSync()
 				c.room.frameDatas = util.CreateArray()
-				// 重置房间状态
-				c.room.roomState = &ClientState{
-					Data: util.CreateMap(),
-				}
-				// 重置用户状态
-				c.room.userState = map[int]*ClientState{}
-				c.SendToUserOp(&ClientMessage{
-					Op: ResetRoom,
-				})
+				c.room.ResetRoomAndBroadcast()
 			}
 		case SetRoomMatchOption:
 			// 设置匹配参数
