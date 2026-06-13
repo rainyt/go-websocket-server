@@ -251,7 +251,7 @@ func (s *App) CreateRoom(user *Client, option RoomConfigOption) *Room {
 		}
 	}
 
-	interval := 1. / 60.
+	interval := 1. / 30.
 	interval = float64(time.Second) * interval
 
 	// 如果房间没有定义最大人数，则默认为10个
