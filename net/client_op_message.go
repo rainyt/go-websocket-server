@@ -186,6 +186,76 @@ func (c *Client) OnMessage(data []byte) {
 			// 转发房间信息
 			if c.room != nil {
 				c.room.recordRoomMessage(message)
+				
+				// 处理角色选择状态同步请求
+				dataMap, isMap := message.Data.(map[string]any)
+				if isMap {
+					msgType := util.GetMapValueToString(dataMap, "type")
+					if msgType == "requestRoleSelectState" {
+						// 收集房间内所有用户的状态并返回
+						response := map[string]any{
+							"type":   "roleSelectUpdate",
+							"action": "syncState",
+						}
+						
+						c.room.userStateLock.Lock()
+						for uid, state := range c.room.userState {
+							if state != nil && state.Data != nil {
+								// 获取用户的角色选择状态
+								allData := state.Data.Copy()
+								selectedIndex := util.GetMapValueToInt(allData, "selectedIndex")
+								groupIndex := util.GetMapValueToInt(allData, "groupIndex")
+								isLocked := util.GetMapValueToInt(allData, "isLocked")
+								role := util.GetMapValueToAny(allData, "role")
+								
+								// 找到对应的座位
+								for i, v := range c.room.users.List {
+									user := v.(*Client)
+									if user.uid == uid {
+										if i == 0 {
+											response["p1Index"] = selectedIndex
+											response["p1GroupIndex"] = groupIndex
+											response["p1Locked"] = isLocked
+											if role != nil {
+												response["p1Role"] = role
+											}
+										} else if i == 1 {
+											response["p2Index"] = selectedIndex
+											response["p2GroupIndex"] = groupIndex
+											response["p2Locked"] = isLocked
+											if role != nil {
+												response["p2Role"] = role
+											}
+										}
+										break
+									}
+								}
+							}
+						}
+						c.room.userStateLock.Unlock()
+						
+						// 发送同步状态给请求者
+						c.SendToUserOp(&ClientMessage{
+							Op:   RoomMessage,
+							Data: response,
+						})
+						return
+					} else if msgType == "cancelRoleSelect" {
+						// 角色选择取消，转发给所有成员
+						c.room.SendToAllUserOp(&ClientMessage{
+							Op: RoomMessage,
+							Data: map[string]any{
+								"uid":  c.uid,
+								"data": message.Data,
+							},
+						}, c)
+						c.SendToUserOp(&ClientMessage{
+							Op: RoomMessage,
+						})
+						return
+					}
+				}
+				
 				// 需要知道是哪个用户发的数据
 				c.room.SendToAllUserOp(&ClientMessage{
 					Op: RoomMessage,
