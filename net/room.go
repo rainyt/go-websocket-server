@@ -65,6 +65,9 @@ func (r *Room) updateRoomData(data RoomConfigOption) {
 
 // 是否为无效房间
 func (r *Room) isInvalidRoom() bool {
+	if r == nil || r.users == nil || r.users.List == nil {
+		return true
+	}
 	hasOnline := false
 	for _, v := range r.users.List {
 		if v.(*Client).Connected {
@@ -202,6 +205,7 @@ func (r *Room) JoinClient(client *Client) {
 		r.users.Push(client)
 		logs.InfoM(client.name, "加入房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 		client.room = r
+		logs.InfoM("发送房间消息给用户", client.name)
 		client.SendToUserOp(&ClientMessage{
 			Op:   GetRoomData,
 			Data: r.GetRoomData(),
@@ -213,6 +217,7 @@ func (r *Room) JoinClient(client *Client) {
 		}, client)
 		// 其他用户通知房间更新
 		r.onRoomChanged()
+		logs.InfoM("加入用户行为结束", client.name)
 	}
 }
 
@@ -224,7 +229,7 @@ func (r *Room) onRoomChanged() {
 
 // 用户退出
 func (r *Room) ExitClient(client *Client) {
-	if client.room != nil {
+	if client.room != nil && r.users != nil && r.users.List != nil {
 		if client.room.id == r.id {
 			// 找出用户在房间中的座位
 			var seatIndex int = -1
@@ -274,6 +279,8 @@ func (r *Room) ExitClient(client *Client) {
 				logs.InfoM(client.name, "：离开房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 			}
 		}
+	} else {
+		client.getApp().rooms.Remove(r)
 	}
 }
 

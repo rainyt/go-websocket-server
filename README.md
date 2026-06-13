@@ -1,6 +1,9 @@
 # go-websocket-server
 Golang编写的WebSocket服务器，用于提供通用的房间管理、帧同步、状态同步等实时对战支持。
 
+# websocet底层
+从2.0版本开始，则使用`gorilla/websocket`包，不再使用自开发的websocket包。
+
 # 启动服务器
 如果需要关闭WSS，`wss`参数需要为0
 ```shell

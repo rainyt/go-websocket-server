@@ -14,17 +14,17 @@ func (c *Client) OnMessage(data []byte) {
 	message := &ClientMessage{}
 	var err error
 	// 如果是二进制数据，则需要解析处理，第一位是op操作符，剩余的是内容
-	json := jsoniter.ConfigCompatibleWithStandardLibrary
-	if c.FrameIsBinary {
+	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(data, &message)
+	// 如果无法以JSON解析时，则使用二进制解析
+	if err != nil {
 		op := ClientAction(data[0])
 		content := data[1:]
 		message.Op = op
-		err = json.Unmarshal(content, &message.Data)
-	} else {
-		err = json.Unmarshal(data, &message)
+		err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(content, &message.Data)
 	}
 	if err == nil {
 		if c.uid == 0 || message.Op == Login {
+			logs.InfoM("onWork:", message.Op, message.Data)
 			switch message.Op {
 			case Login:
 				if c.uid == 0 {
@@ -43,6 +43,7 @@ func (c *Client) OnMessage(data []byte) {
 						return
 					}
 					// 绑定AppId
+					logs.InfoM("准备登录：", openId.(string))
 					c.appid = appId
 					c.getApp().users.Push(c)
 					// 只需要用户名和OpenId即可登陆
@@ -549,34 +550,37 @@ func (c *Client) OnMessage(data []byte) {
 			}
 		case MatchRoom:
 			// 匹配房间
+			logs.InfoM("match room user:", c.name, ",", message.Data)
 			if c.room != nil {
-				c.SendError(JOIN_ROOM_ERROR, message.Op, "你已经在房间中")
-			} else {
-				matchOption := &MatchOption{}
-				util.SetJsonTo(message.Data, matchOption)
-				c.matchOption = matchOption
-				r, err := c.getApp().MatchRoom(c)
-				if err == nil {
-					c.SendToUserOp(&ClientMessage{
-						Op: MatchRoom,
-						Data: map[string]any{
-							"id": r.id,
-						}},
-					)
-				} else {
-					// 当不存在匹配房间时，如果是自动创建房间时，则开始读取
-					r2 := c.getApp().CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: ""})
-					r2.matchOption = matchOption
-					r2.JoinClient(c)
-					c.SendToUserOp(&ClientMessage{
-						Op: MatchRoom,
-						Data: map[string]any{
-							"id": r2.id,
-						}},
-					)
-				}
-				c.matchOption = nil
+				logs.InfoM("match room fail, exsits room.", c.name)
+				c.room.ExitClient(c)
 			}
+			matchOption := &MatchOption{}
+			util.SetJsonTo(message.Data, matchOption)
+			c.matchOption = matchOption
+			r, err := c.getApp().MatchRoom(c)
+			if err == nil {
+				logs.InfoM("match room success", c.name)
+				c.SendToUserOp(&ClientMessage{
+					Op: MatchRoom,
+					Data: map[string]any{
+						"id": r.id,
+					}},
+				)
+			} else {
+				// 当不存在匹配房间时，如果是自动创建房间时，则开始读取
+				logs.InfoM("match room success, create new room", c.name)
+				r2 := c.getApp().CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: ""})
+				r2.matchOption = matchOption
+				r2.JoinClient(c)
+				c.SendToUserOp(&ClientMessage{
+					Op: MatchRoom,
+					Data: map[string]any{
+						"id": r2.id,
+					}},
+				)
+			}
+			c.matchOption = nil
 		case GetRoomList:
 			// 获取房间列表
 			page := util.GetMapValueToInt(message.Data, "page")
@@ -652,6 +656,22 @@ func (c *Client) OnMessage(data []byte) {
 				api.Call(c, message, util.GetMapValueToAny(message.Data, "d"))
 			} else {
 				c.SendError(OP_ERROR, message.Op, "无效扩展方法")
+			}
+		case QueryRoomList:
+			roomids := util.GetMapValueToAny(message.Data, "roomids").([]any)
+			if roomids != nil {
+				roomInfo := c.getApp().GetQueryRoomList(roomids)
+				if roomInfo == nil {
+					roomInfo = []any{}
+				}
+				c.SendToUserOp(&ClientMessage{
+					Op: QueryRoomList,
+					Data: map[string]any{
+						"list": roomInfo,
+					},
+				})
+			} else {
+				c.SendError(OP_ERROR, message.Op, "roomids参数错误")
 			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))

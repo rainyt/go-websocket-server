@@ -1,13 +1,16 @@
 package net
 
 import (
-	"crypto/tls"
 	"fmt"
-	"net"
+	"net/http"
 	"reflect"
 	"time"
 	"websocket_server/logs"
 	"websocket_server/util"
+	"websocket_server/websocketv2"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 var CurrentServer *Server
@@ -98,47 +101,49 @@ func (s *Server) InitServer() {
 
 // 开始侦听WebSocket服务器（ws）
 func (s *Server) Listen(ip string, port int) {
+	s.InitServer()
 	fmt.Println("[WS]Server start:" + ip + ":" + fmt.Sprint(port))
-	n, e := net.Listen("tcp", ip+":"+fmt.Sprint(port))
-	if e != nil {
-		fmt.Println(e.Error())
-	}
-	for {
-		c, e := n.Accept()
-		if e == nil {
-			// TODO 当连接人数大于服务器最大限制人数后，直接中断
-			// if s.ConnectCounts >= s.MaxConnectCounts {
-			// 	c.Close()
-			// 	return
-			// }
-			// s.ConnectCounts++
-			// 创建客户端
-			CreateClient(c)
-		}
-	}
+	go websocketv2.Init()
+	httpServer := gin.Default()
+	httpServer.Any("/", upgradeToWebsocket)
+	httpServer.GET("/hxonline", upgradeToWebsocket)
+	httpServer.GET("/hxonline/v2", upgradeToWebsocket)
+	err := httpServer.Run(ip + ":" + fmt.Sprint(port))
+	panic(err)
 }
 
 // 开始侦听TLS协议WebSocket服务器（wss）
 func (s *Server) ListenTLS(ip string, port int) {
 	s.InitServer()
-	c, e := tls.LoadX509KeyPair("tls.pem", "tls.key")
-	if e != nil {
-		panic(e)
+	fmt.Println("[WS]Server start:" + ip + ":" + fmt.Sprint(port))
+	go websocketv2.Init()
+	httpServer := gin.Default()
+	httpServer.Any("/", upgradeToWebsocket)
+	httpServer.GET("/hxonline", upgradeToWebsocket)
+	httpServer.GET("/hxonline/v2", upgradeToWebsocket)
+	err := httpServer.RunTLS(ip+":"+fmt.Sprint(port), "tls.pem", "tls.key")
+	panic(err)
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  0,
+	WriteBufferSize: 0,
+	// 解决跨域问题
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+// 将请求升级为WebSocket
+func upgradeToWebsocket(c *gin.Context) {
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		logs.ErrorM(err)
+		return
 	}
-	config := &tls.Config{Certificates: []tls.Certificate{c}}
-	fmt.Println("[WSS]Server start:" + ip + ":" + fmt.Sprint(port))
-	n, e := tls.Listen("tcp", ip+":"+fmt.Sprint(port), config)
-	if e != nil {
-		fmt.Println(e.Error())
-	}
-	for {
-		c, e := n.Accept()
-		if e == nil {
-			// 将用户写入到用户列表中
-			CreateClient(c)
-			// s.users.Push(CreateClient(c))
-		}
-	}
+	logs.InfoM("upgradeToWebsocket...")
+	client := websocketv2.CreateWebSocketClient(conn)
+	CreateClient(client)
 }
 
 // 追加用户
@@ -306,8 +311,40 @@ func (s *App) ExitRoom(c *Client) {
 	if c.room != nil {
 		room := c.room
 		c.room.ExitClient(c)
-		if room.users.Length() == 0 {
+		if room.users == nil || room.users.List == nil || room.users.Length() == 0 {
 			s.rooms.Remove(room)
+		}
+	}
+}
+
+// 尝试退出房间
+func (s *App) TryExitRoom(c *Client) {
+	logs.InfoM("Try Exit Room, ready:", c.name)
+	if c.room != nil {
+		hasConnected := false
+		room := c.room
+		for _, v := range room.users.List {
+			client := v.(*Client)
+			if client != c && client.Connected {
+				logs.InfoM("Try Exit Room Exist Client...", client.name)
+				hasConnected = true
+				break
+			}
+		}
+		if !hasConnected {
+			// 所有人已经离开
+			var clients []*Client = []*Client{}
+			for _, v := range room.users.List {
+				client := v.(*Client)
+				clients = append(clients, client)
+			}
+			for _, v := range clients {
+				room.ExitClient(v)
+			}
+			s.rooms.Remove(room)
+			logs.InfoM("Try Exit Room...", room.id)
+		} else {
+			logs.InfoM("Try Exit Room fail, hasConnected.", room.id)
 		}
 	}
 }
@@ -337,12 +374,14 @@ type RoomInfo struct {
 	Password  bool   `json:"password"`  // 是否存在密码
 	Master    string `json:"master"`    // 房主名称
 	Lock      bool   `json:"lock"`      // 房间是否已锁定
+	Data      any    `json:"data"`      // 对应customData数据
 }
 
 // 获取指定范围的房间列表状态（仅返回房间当前人数、房间ID、是否有密码等基础信息）
 func (s *App) GetRoomList(page int, counts int) any {
 	len := s.rooms.Length()
 	allpage := int(len/counts) + 1
+	fmt.Println("查询房间page=" + fmt.Sprint(page) + "allpage=" + fmt.Sprint(allpage))
 	roomLen := s.rooms.Length()
 	if page > 0 && page <= allpage && roomLen > 0 {
 		// 开始截取的位置
@@ -364,10 +403,44 @@ func (s *App) GetRoomList(page int, counts int) any {
 					Password:  r.option.password != "",
 					Master:    r.master.name,
 					Lock:      r.lock,
+					Data:      r.customData.Copy(),
 				})
 			}
 			return arr
 		}
+	}
+	return nil
+}
+
+// 根据房间ID查询房间列表
+func (s *App) GetQueryRoomList(roomids []any) any {
+	hasId := func(id int) bool {
+		for _, v := range roomids {
+			// int 转 float64
+			if v.(float64) == float64(id) {
+				return true
+			}
+		}
+		return false
+	}
+	list := s.rooms.List
+	if list != nil {
+		arr := []RoomInfo{}
+		for _, v := range list {
+			r := v.(*Room)
+			if hasId(r.id) {
+				arr = append(arr, RoomInfo{
+					Id:        r.id,
+					Counts:    r.users.Length(),
+					MaxCounts: r.option.maxCounts,
+					Password:  r.option.password != "",
+					Master:    r.master.name,
+					Lock:      r.lock,
+					Data:      r.customData.Copy(),
+				})
+			}
+		}
+		return arr
 	}
 	return nil
 }

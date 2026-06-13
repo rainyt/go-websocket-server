@@ -1,14 +1,12 @@
 package net
 
 import (
-	"encoding/json"
-	"net"
 	"runtime"
-	"sync"
-	"time"
 	"websocket_server/logs"
 	"websocket_server/util"
-	"websocket_server/websocket"
+	"websocket_server/websocketv2"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 type ClientAction int
@@ -61,6 +59,7 @@ const (
 	CannelMatchUser         ClientAction = 43 // 取消匹配用户
 	SendToUser              ClientAction = 44 // 发送消息给用户
 	UserMessage             ClientAction = 45 // 接收到用户独立消息内容
+	QueryRoomList           ClientAction = 46 // 查询房间列表
 )
 
 type ClientMessage struct {
@@ -96,15 +95,14 @@ const (
 )
 
 type Client struct {
-	websocket.WebSocket              // WebSocket基础类
-	room                *Room        // 房间（每个用户只会进入到一个房间中）
-	userData            *util.Map    // 用户自定义数据
-	frames              *util.Array  // 用户帧同步缓存操作
-	uid                 int          // 用户ID
-	name                string       // 用户名称
-	matchOption         *MatchOption // 房间匹配参数
-	appid               string       // 绑定的AppId
-	sendLock            sync.Mutex   // 发送消息锁定
+	*websocketv2.WebSocket              // WebSocket基础类
+	room                   *Room        // 房间（每个用户只会进入到一个房间中）
+	userData               *util.Map    // 用户自定义数据
+	frames                 *util.Array  // 用户帧同步缓存操作
+	uid                    int          // 用户ID
+	name                   string       // 用户名称
+	matchOption            *MatchOption // 房间匹配参数
+	appid                  string       // 绑定的AppId
 }
 
 // 发送数据给所有人
@@ -123,38 +121,21 @@ func (c *Client) getApp() *App {
 func (c *Client) SendToUser(data []byte) {
 	// 使用线程发送
 	if c.Connected {
-		if len(c.WriteChannel) == cap(c.WriteChannel) {
-			logs.InfoM("用户缓存已超出最大值，中断处理")
-			c.Connected = false
-			c.Close()
-			return
-		}
-		select {
-		case c.WriteChannel <- data:
-		case <-time.After(5 * time.Second):
-			// 阻塞超时
-			c.Connected = false
-			c.Close()
-		default:
-			logs.InfoM("发送数据渠道已关闭")
-		}
+		go c.SendBytes(data)
 	}
 }
 
 // 发送客户端数据到当前用户
 func (c *Client) SendToUserOp(data *ClientMessage) {
 	if data != nil {
-		c.sendLock.Lock()
-		defer c.sendLock.Unlock()
 		// 指针会有nil丢失的情况，保护数据
 		var value ClientMessage = ClientMessage{
 			Op:   data.Op,
 			Data: data.Data,
 		}
-		v, err := json.Marshal(value)
+		v, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(value)
 		if err == nil {
-			bdata := websocket.PrepareFrame(v, websocket.Text, true, c.Compress)
-			c.SendToUser(bdata.Data)
+			c.SendToUser(v)
 		}
 	}
 }
@@ -162,15 +143,13 @@ func (c *Client) SendToUserOp(data *ClientMessage) {
 // 用户离线时触发
 func (c *Client) OnUserOut() {
 	// 如果存在房间时，则需要退出房间
+	logs.InfoM("用户" + c.name + ".OnUserOut")
 	c.Connected = false
 	if c.room != nil {
 		logs.InfoM("用户" + c.name + "退出房间")
 		// 如果房间存在，而且房间没有锁定时，离线则可以直接退出房间
 		if c.room.isInvalidRoom() {
-			// 如果是已经无效的房间，则全部移除
-			for _, v := range c.room.users.List {
-				c.getApp().ExitRoom(v.(*Client))
-			}
+			c.getApp().TryExitRoom(c)
 		} else if !c.room.lock {
 			c.getApp().ExitRoom(c)
 		} else {
@@ -179,6 +158,7 @@ func (c *Client) OnUserOut() {
 				Op:   OutOnlineRoomClient,
 				Data: c.GetUserData(),
 			}, c)
+			c.getApp().TryExitRoom(c)
 		}
 		// 从服务器列表中删除
 	}
@@ -188,7 +168,7 @@ func (c *Client) OnUserOut() {
 	// 从服务器匹配列表中取消
 	c.getApp().matchs.cannelMatchUser(c)
 	// 关闭缓存区
-	close(c.WriteChannel)
+	// close(c.WriteChannel)
 	// 触发扩展关闭接口
 	for _, cf := range CurrentServer.OnClosedApi {
 		cf.Call(c, &ClientMessage{}, nil)
@@ -211,7 +191,7 @@ func (c *Client) GetUserData() any {
 	data := map[string]any{}
 	data["uid"] = c.uid
 	data["name"] = c.name
-	data["data"] = c.userData.Copy()
+	data["data"] = c.userData.Data
 	return data
 }
 
@@ -221,20 +201,16 @@ func (c *Client) GetRegisterUserData() *RegisterUserData {
 }
 
 // 创建客户端对象
-func CreateClient(c net.Conn) *Client {
+func CreateClient(c *websocketv2.WebSocket) *Client {
 	client := &Client{
 		userData: util.CreateMap(),
 		frames:   util.CreateArray(),
 	}
+	client.WebSocket = c
 	client.Connected = true
-	client.Conn = c
-	client.IsWebSocket = true
-	client.Data = &util.Bytes{Data: []byte{}}
-	client.State = websocket.Handshake
-	client.WriteChannel = make(chan []byte, 1024)
 	// 创建Handle绑定
 	logs.InfoM("线程数量：", runtime.NumGoroutine())
-	go websocket.CreateClientHandle(client)
-	go websocket.CreateClientWriteHandle(client)
+	client.OnUserOutCallback = client.OnUserOut
+	client.OnWorkData = client.OnMessage
 	return client
 }

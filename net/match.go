@@ -102,7 +102,6 @@ func (m *Matchs) mathMatch(c *Client) {
 
 // 匹配客户端用户
 func (o *MatchOption) matchClient(c *Client) bool {
-	logs.InfoM("[matchClient]")
 	if c.matchOption == nil {
 		logs.InfoM("用户没有匹配参数")
 		return false
@@ -135,7 +134,7 @@ func (o *MatchOption) matchClient(c *Client) bool {
 			return false
 		}
 	} else {
-		logs.InfoM("匹配验证错误：key不匹配")
+		// logs.InfoM("匹配验证错误：key不匹配")
 		return false
 	}
 	return true
