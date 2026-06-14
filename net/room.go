@@ -244,16 +244,17 @@ func (r *Room) ExitClient(client *Client) {
 			client.room = nil
 			if r.users.Length() == 0 {
 				// 房间已经不存在用户了，则删除当前房间
-				client.getApp().rooms.Remove(r)
+				client.getApp().removeRoom(r)
 			} else {
 				// 如果用户仍然存在时，如果是房主掉线，则需要更换房主。不管房主是否更换，都需要通知客户端用户重新更新房间信息
 				if r.master == client {
 					r.master = r.users.List[0].(*Client)
 				}
-				// 需要将状态清空
+				// 需要将状态清空（最小化锁范围，仅锁住 map 写操作，避免持有锁期间发送消息导致死锁）
 				r.userStateLock.Lock()
-				defer r.userStateLock.Unlock()
 				r.userState[client.uid] = nil
+				r.userStateLock.Unlock()
+
 				// 同步退出用户信息
 				r.SendToAllUserOp(&ClientMessage{
 					Op:   ExitRoomClient,
@@ -280,7 +281,7 @@ func (r *Room) ExitClient(client *Client) {
 			}
 		}
 	} else {
-		client.getApp().rooms.Remove(r)
+		client.getApp().removeRoom(r)
 	}
 }
 

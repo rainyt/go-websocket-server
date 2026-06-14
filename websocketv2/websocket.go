@@ -2,6 +2,7 @@ package websocketv2
 
 import (
 	"log"
+	"sync"
 	"time"
 	"websocket_server/logs"
 	"websocket_server/runtime"
@@ -49,6 +50,9 @@ type WebSocket struct {
 	// 是否已经取消注册过程中
 	isUnregister bool
 
+	// 关闭保护锁，防止readMessage/writeMessage双协程重复清理
+	closeMu sync.Mutex
+
 	userData map[string]any
 
 	frames *util.Array
@@ -70,6 +74,25 @@ func (client *WebSocket) SendBytes(data []byte) {
 	}
 }
 
+// cleanup 安全关闭连接（幂等，仅首次调用生效）
+func (c *WebSocket) cleanup() {
+	c.closeMu.Lock()
+	if c.isClosed {
+		c.closeMu.Unlock()
+		return
+	}
+	c.isClosed = true
+	c.closeMu.Unlock()
+
+	// 锁外执行 channel 发送和连接关闭，避免阻塞
+	data := &RegisterClient{
+		Client: c,
+	}
+	logs.InfoM("ready unregister", data.Client)
+	SERVER_HUB.unregister <- data
+	c.conn.Close()
+}
+
 func CreateWebSocketClient(conn *websocket.Conn) *WebSocket {
 	client := &WebSocket{conn: conn, send: make(chan *MessageByte, 256), Connected: true, isClosed: false,
 		isReleased: false, isUnregister: false,
@@ -81,17 +104,7 @@ func CreateWebSocketClient(conn *websocket.Conn) *WebSocket {
 
 func (c *WebSocket) readMessage() {
 	defer runtime.GoRecover()
-	defer func() {
-		if !c.isClosed {
-			c.isClosed = true
-			data := &RegisterClient{
-				Client: c,
-			}
-			logs.InfoM("ready unregister", data.Client)
-			SERVER_HUB.unregister <- data
-			c.conn.Close()
-		}
-	}()
+	defer c.cleanup()
 	c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
@@ -120,16 +133,8 @@ func (c *WebSocket) writeMessage() {
 	defer func() {
 		logs.InfoM("writeMessage stop.")
 		ticker.Stop()
-		if !c.isClosed {
-			c.isClosed = true
-			data := &RegisterClient{
-				Client: c,
-			}
-			logs.InfoM("ready unregister", data.Client)
-			SERVER_HUB.unregister <- data
-			c.conn.Close()
-		}
 	}()
+	defer c.cleanup()
 	for {
 		select {
 		case message, ok := <-c.send:
@@ -185,7 +190,7 @@ func (c *WebSocket) onWork(data []byte) {
 	c.OnWorkData(data)
 }
 
+// Close 安全关闭WebSocket连接（幂等，可多次调用）
 func (c *WebSocket) Close() {
-	// TODO 断线处理
-	c.conn.Close()
+	c.cleanup()
 }

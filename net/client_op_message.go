@@ -17,6 +17,10 @@ func (c *Client) OnMessage(data []byte) {
 	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(data, &message)
 	// 如果无法以JSON解析时，则使用二进制解析
 	if err != nil {
+		if len(data) == 0 {
+			c.SendError(OP_ERROR, 0, "空消息")
+			return
+		}
 		op := ClientAction(data[0])
 		content := data[1:]
 		message.Op = op
@@ -658,8 +662,9 @@ func (c *Client) OnMessage(data []byte) {
 				c.SendError(OP_ERROR, message.Op, "无效扩展方法")
 			}
 		case QueryRoomList:
-			roomids := util.GetMapValueToAny(message.Data, "roomids").([]any)
-			if roomids != nil {
+			roomidsRaw := util.GetMapValueToAny(message.Data, "roomids")
+			roomids, ok := roomidsRaw.([]any)
+			if ok && roomids != nil {
 				roomInfo := c.getApp().GetQueryRoomList(roomids)
 				if roomInfo == nil {
 					roomInfo = []any{}

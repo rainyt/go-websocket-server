@@ -29,8 +29,12 @@ func CreateServerHub() *ServerHub {
 
 var SERVER_HUB *ServerHub
 
-// Init 启动服务器Hub事件循环，处理客户端注销
+// Init 启动服务器Hub事件循环，处理客户端注销（全局单例，仅允许初始化一次）
 func Init() {
+	if SERVER_HUB != nil {
+		logs.ErrorF("ServerHub已初始化，忽略重复初始化")
+		return
+	}
 	SERVER_HUB = CreateServerHub()
 	for data := range SERVER_HUB.unregister {
 		logs.InfoM("unregister", data.Client)

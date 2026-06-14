@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"time"
 	"websocket_server/logs"
 	"websocket_server/util"
@@ -91,8 +93,12 @@ func (s *Server) Register(extendsApi any) {
 	}
 }
 
-// 初始化服务器
+// 初始化服务器（全局单例，仅允许初始化一次）
 func (s *Server) InitServer() {
+	if CurrentServer != nil {
+		logs.ErrorF("Server已初始化，忽略重复初始化")
+		return
+	}
 	CurrentServer = s
 	s.ExtendsApi = map[string]*CallFunc{}
 	s.OnClosedApi = map[string]*CallFunc{}
@@ -171,6 +177,9 @@ type App struct {
 	usersSQL     *UserDataSQL // 用户数据库，管理已注册、登陆的用户基础信息
 	msglist      *util.Array  // 全服消息列表
 	msgListeners *util.Array  // 全服消息侦听列表
+	nextRoomId   int64        // 下一个新房间ID（无复用ID时使用）
+	freedRoomIds []int        // 可复用的已释放房间ID栈
+	roomIdMu     sync.Mutex   // 保护 freedRoomIds
 }
 
 // 初始化App
@@ -186,6 +195,32 @@ func (s *App) initApp() {
 	s.usersSQL = &UserDataSQL{
 		users: map[string]*RegisterUserData{},
 	}
+}
+
+// allocateRoomId 分配房间ID（优先复用已释放的ID，无可用时自增新ID）
+func (s *App) allocateRoomId() int {
+	s.roomIdMu.Lock()
+	defer s.roomIdMu.Unlock()
+	if len(s.freedRoomIds) > 0 {
+		// 弹栈复用最小ID
+		id := s.freedRoomIds[len(s.freedRoomIds)-1]
+		s.freedRoomIds = s.freedRoomIds[:len(s.freedRoomIds)-1]
+		return id
+	}
+	return int(atomic.AddInt64(&s.nextRoomId, 1))
+}
+
+// recycleRoomId 回收房间ID供后续复用
+func (s *App) recycleRoomId(id int) {
+	s.roomIdMu.Lock()
+	s.freedRoomIds = append(s.freedRoomIds, id)
+	s.roomIdMu.Unlock()
+}
+
+// removeRoom 从房间列表中移除房间并回收其ID
+func (s *App) removeRoom(room *Room) {
+	s.rooms.Remove(room)
+	s.recycleRoomId(room.id)
 }
 
 // 发送全服消息
@@ -250,13 +285,7 @@ func (s *App) CreateRoom(user *Client, option RoomConfigOption) *Room {
 		return nil
 	}
 
-	create_uid := 1
-	for _, v := range s.rooms.List {
-		room := v.(*Room)
-		if room.id >= create_uid {
-			create_uid = room.id + 1
-		}
-	}
+	create_uid := s.allocateRoomId()
 
 	interval := 1. / 30.
 	interval = float64(time.Second) * interval
@@ -314,7 +343,7 @@ func (s *App) ExitRoom(c *Client) {
 		room := c.room
 		c.room.ExitClient(c)
 		if room.users == nil || room.users.List == nil || room.users.Length() == 0 {
-			s.rooms.Remove(room)
+			s.removeRoom(room)
 		}
 	}
 }
@@ -343,7 +372,7 @@ func (s *App) TryExitRoom(c *Client) {
 			for _, v := range clients {
 				room.ExitClient(v)
 			}
-			s.rooms.Remove(room)
+			s.removeRoom(room)
 			logs.InfoM("Try Exit Room...", room.id)
 		} else {
 			logs.InfoM("Try Exit Room fail, hasConnected.", room.id)
@@ -418,9 +447,20 @@ func (s *App) GetRoomList(page int, counts int) any {
 func (s *App) GetQueryRoomList(roomids []any) any {
 	hasId := func(id int) bool {
 		for _, v := range roomids {
-			// int 转 float64
-			if v.(float64) == float64(id) {
-				return true
+			// 安全处理 JSON 反序列化的多种数字类型
+			switch val := v.(type) {
+			case float64:
+				if val == float64(id) {
+					return true
+				}
+			case int:
+				if val == id {
+					return true
+				}
+			case int64:
+				if int(val) == id {
+					return true
+				}
 			}
 		}
 		return false
