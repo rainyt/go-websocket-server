@@ -171,9 +171,11 @@ func (r *Room) StartFrameSync() {
 }
 
 // 停止帧同步
-func (r *Room) StopFrameSync() {
+func (r *Room) StopFrameSync(keepLock bool) {
 	r.frameSync = false
-	r.lock = false
+	if !keepLock {
+		r.lock = false
+	}
 	r.cacheId = 0
 	logs.InfoM("StopFrameSync")
 }

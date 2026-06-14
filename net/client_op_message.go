@@ -162,9 +162,18 @@ func (c *Client) OnMessage(data []byte) {
 		case StopFrameSync:
 			// 开始停止帧同步
 			if c.room != nil {
-				c.room.StopFrameSync()
+				c.room.StopFrameSync(false)
 				c.SendToUserOp(&ClientMessage{
 					Op: StopFrameSync,
+				})
+			} else {
+				c.SendError(STOP_FRAME_SYNC_ERROR, message.Op, "房间不存在，无法停止帧同步")
+			}
+		case StopFrameSyncWithoutUnlock:
+			if c.room != nil {
+				c.room.StopFrameSync(true)
+				c.SendToUserOp(&ClientMessage{
+					Op: StopFrameSyncWithoutUnlock,
 				})
 			} else {
 				c.SendError(STOP_FRAME_SYNC_ERROR, message.Op, "房间不存在，无法停止帧同步")
@@ -203,7 +212,7 @@ func (c *Client) OnMessage(data []byte) {
 			// 转发房间信息
 			if c.room != nil {
 				c.room.recordRoomMessage(message)
-				
+
 				// 处理角色选择状态同步请求
 				dataMap, isMap := message.Data.(map[string]any)
 				if isMap {
@@ -214,7 +223,7 @@ func (c *Client) OnMessage(data []byte) {
 							"type":   "roleSelectUpdate",
 							"action": "syncState",
 						}
-						
+
 						c.room.userStateLock.Lock()
 						for uid, state := range c.room.userState {
 							if state != nil && state.Data != nil {
@@ -224,7 +233,7 @@ func (c *Client) OnMessage(data []byte) {
 								groupIndex := util.GetMapValueToInt(allData, "groupIndex")
 								isLocked := util.GetMapValueToInt(allData, "isLocked")
 								role := util.GetMapValueToAny(allData, "role")
-								
+
 								// 找到对应的座位
 								for i, v := range c.room.users.List {
 									user := v.(*Client)
@@ -250,7 +259,7 @@ func (c *Client) OnMessage(data []byte) {
 							}
 						}
 						c.room.userStateLock.Unlock()
-						
+
 						// 发送同步状态给请求者
 						c.SendToUserOp(&ClientMessage{
 							Op:   RoomMessage,
@@ -272,7 +281,7 @@ func (c *Client) OnMessage(data []byte) {
 						return
 					}
 				}
-				
+
 				// 需要知道是哪个用户发的数据
 				c.room.SendToAllUserOp(&ClientMessage{
 					Op: RoomMessage,
@@ -534,7 +543,7 @@ func (c *Client) OnMessage(data []byte) {
 				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
 			} else {
 				// 停止帧同步，同时清空帧缓存
-				c.room.StopFrameSync()
+				c.room.StopFrameSync(false)
 				c.room.frameDatas = util.CreateArray()
 				// 重置房间状态
 				c.room.roomState = &ClientState{
