@@ -120,26 +120,30 @@ Server（全局单例 CurrentServer）
 
 ### 3.1 🔴 致命级（P0 — 必须立即修复）
 
-| # | 文件:行号 | 问题 | 影响 |
-|---|-----------|------|------|
-| 1 | [main.go:111-112](main.go#L111-L112)、[main.go:124-125](main.go#L124-L125) | `gin.Run()` 正常退出时 `err == nil`，执行 `panic(nil)` 无意义；端口被占用等异常时直接崩溃，无优雅退出 | 生产环境端口冲突直接炸进程 |
-| 2 | [websocketv2/hub.go:48-58](websocketv2/hub.go#L48-L58) | `Init()` 函数内 `for { select {...} }` 永久阻塞，且仅处理了 `unregister` 通道，`register` 通道从未使用 | 无效死循环浪费一个goroutine |
-| 3 | [net/client.go:123-126](net/client.go#L123-L126) | `SendToUser` 每次调用执行 `go c.SendBytes(data)`，帧同步30FPS × N个房间玩家，每秒创建数千无意义goroutine | **严重协程泄漏**，GC压力巨大 |
-| 4 | [net/server.go:129-130](net/server.go#L129-L130) | WebSocket Upgrader 的 `ReadBufferSize` 和 `WriteBufferSize` 均为 0 | 每次读写都直接系统调用，吞吐量极低 |
-| 5 | [util/map.go:42-43](util/map.go#L42-L43) | `GetData` 方法直接访问 `m.Data[key]`，**没有任何锁保护** | Go map 并发读写直接 `fatal error`，进程崩溃 |
-| 6 | [util/array.go:42-48](util/array.go#L42-L48)、[util/array.go:37-38](util/array.go#L37-L38) | `IndexOf` 和 `Length` 方法无锁遍历slice | 与 `Push`/`Remove` 并发时数据竞争，slice 底层数组可能被重新分配导致野指针 |
+> ✅ **全部已修复** — 提交 `93f75d4`（2026-06-14）
+
+| # | 文件:行号 | 问题 | 影响 | 状态 |
+|---|-----------|------|------|------|
+| 1 | net/server.go:111-125 | `gin.Run()` 正常退出时 `err == nil`，执行 `panic(nil)` 无意义；端口被占用等异常时直接崩溃，无优雅退出 | 生产环境端口冲突直接炸进程 | ✅ |
+| 2 | websocketv2/hub.go:48-58 | `Init()` 函数内 `for { select {...} }` 永久阻塞，且仅处理了 `unregister` 通道，`register` 通道从未使用 | 无效死循环浪费一个goroutine | ✅ |
+| 3 | net/client.go:123-126 | `SendToUser` 每次调用执行 `go c.SendBytes(data)`，帧同步30FPS × N个房间玩家，每秒创建数千无意义goroutine | **严重协程泄漏**，GC压力巨大 | ✅ |
+| 4 | net/server.go:129-130 | WebSocket Upgrader 的 `ReadBufferSize` 和 `WriteBufferSize` 均为 0 | 每次读写都直接系统调用，吞吐量极低 | ✅ |
+| 5 | util/map.go:42-43 | `GetData` 方法直接访问 `m.Data[key]`，**没有任何锁保护** | Go map 并发读写直接 `fatal error`，进程崩溃 | ✅ |
+| 6 | util/array.go:37-48 | `IndexOf` 和 `Length` 方法无锁遍历slice | 与 `Push`/`Remove` 并发时数据竞争，slice 底层数组可能被重新分配导致野指针 | ✅ |
 
 ### 3.2 🟠 严重级（P1 — 会导致生产故障）
 
-| # | 文件:行号 | 问题 | 影响 |
-|---|-----------|------|------|
-| 7 | [net/server.go:16](net/server.go#L16)、[websocketv2/hub.go:46](websocketv2/hub.go#L46) | `CurrentServer` 和 `SERVER_HUB` 全局单例，无并发保护 | 不可测试，不可多实例 |
-| 8 | [net/client_op_message.go:20](net/client_op_message.go#L20) | 二进制消息解析 `data[0]` 在空切片时直接 panic | 恶意空消息导致进程崩溃 |
-| 9 | [net/room.go:247-256](net/room.go#L247-L256) | `ExitClient` 中 `userStateLock.Lock()` 后 defer unlock 在 if 分支内，锁粒度混乱 | 可能死锁或状态不一致 |
-| 10 | [net/server.go:420](net/server.go#L420) | `v.(float64)` 无保护断言，若类型不匹配直接 panic | JSON 反序列化数字可能为 `json.Number` 字符串 |
-| 11 | [net/client_op_message.go:661](net/client_op_message.go#L661) | `util.GetMapValueToAny(...).([]any)` 无保护断言 | 恶意数据导致 panic |
-| 12 | [websocketv2/websocket.go:69-76](websocketv2/websocket.go#L69-L76) | `CreateWebSocketClient` 启动两个goroutine且无任何生命周期管理 | 连接关闭时 goroutine 可能残留 |
-| 13 | [net/server.go:252-256](net/server.go#L252-L256) | 房间ID分配 O(n) 遍历，在大房间数下效率差 | 10000+ 房间时每次创建都全量扫描 |
+> ✅ **全部已修复** — 提交 `f7f96e0`（2026-06-14）
+
+| # | 文件:行号 | 问题 | 影响 | 状态 |
+|---|-----------|------|------|------|
+| 7 | net/server.go:16、websocketv2/hub.go:46 | `CurrentServer` 和 `SERVER_HUB` 全局单例，无并发保护 | 不可测试，不可多实例 | ✅ |
+| 8 | net/client_op_message.go:20 | 二进制消息解析 `data[0]` 在空切片时直接 panic | 恶意空消息导致进程崩溃 | ✅ |
+| 9 | net/room.go:247-256 | `ExitClient` 中 `userStateLock.Lock()` 后 defer unlock 在 if 分支内，锁粒度混乱 | 可能死锁或状态不一致 | ✅ |
+| 10 | net/server.go:420 | `v.(float64)` 无保护断言，若类型不匹配直接 panic | JSON 反序列化数字可能为 `json.Number` 字符串 | ✅ |
+| 11 | net/client_op_message.go:661 | `util.GetMapValueToAny(...).([]any)` 无保护断言 | 恶意数据导致 panic | ✅ |
+| 12 | websocketv2/websocket.go:69-76 | `CreateWebSocketClient` 启动两个goroutine且无任何生命周期管理 | 连接关闭时 goroutine 可能残留 | ✅ |
+| 13 | net/server.go:252-256 | 房间ID分配 O(n) 遍历，在大房间数下效率差 | 10000+ 房间时每次创建都全量扫描 | ✅ |
 
 ### 3.3 🟡 中等级（P2 — 设计与可维护性缺陷）
 
@@ -214,81 +218,50 @@ SERVER_HUB（全局）→ clientsByUserId（全局Map）
 
 #### 任务清单
 
-- [ ] **1.1 修复 util.Map 并发安全**
-  - 将 `sync.Mutex` 改为 `sync.RWMutex`
-  - `GetData` 加读锁
-  - 更长远方案：用标准库 `sync.Map` 替换，或使用泛型封装 `sync.Map`
+- [x] **1.1 修复 util.Map 并发安全** ✅ `93f75d4`
+  - `sync.Mutex` → `sync.RWMutex`
+  - `GetData` 加 `RLock()/RUnlock()` 读锁
+  - ~~更长远方案：用标准库 `sync.Map` 替换，或使用泛型封装 `sync.Map`~~ （延后）
 
-- [ ] **1.2 修复 util.Array 并发安全**
-  - 升级为 `sync.RWMutex`
-  - `IndexOf`、`Length` 加读锁
-  - 考虑用 `[]*Client` 替代 `[]any`，消除类型断言
+- [x] **1.2 修复 util.Array 并发安全** ✅ `93f75d4`
+  - `sync.Mutex` → `sync.RWMutex`
+  - `IndexOf`、`Length` 加 `RLock()/RUnlock()` 读锁
+  - ~~考虑用 `[]*Client` 替代 `[]any`，消除类型断言~~ （延后至架构重构阶段）
 
-- [ ] **1.3 消除 SendToUser 冗余协程**
-  ```go
-  // Before: 每次发送都创建goroutine
-  func (c *Client) SendToUser(data []byte) {
-      if c.Connected {
-          go c.SendBytes(data)
-      }
-  }
-  
-  // After: 直接投递到channel，由writeMessage协程消费
-  func (c *Client) SendToUser(data []byte) {
-      if c.Connected {
-          select {
-          case c.send <- &MessageByte{data: data}:
-          default:
-              // Channel满时的降级策略：记录日志或丢弃
-              logs.ErrorF("send channel full for user: %d", c.uid)
-          }
-      }
-  }
-  ```
+- [x] **1.3 消除 SendToUser 冗余协程** ✅ `93f75d4`
+  - `SendToUser` 去掉 `go` 关键字，不再每次创建新 goroutine
+  - `SendBytes` 改为非阻塞 `select { case send <-: default: log }`，通道满时丢弃并记录
 
-- [ ] **1.4 修复无保护类型断言**
-  - 全局替换 `x.(*Type)` 为逗号-OK 模式
-  - `GetMapValueToInt` 系列函数增加 float64→int 的安全转换日志
+- [x] **1.4 修复无保护类型断言** ✅ `f7f96e0`（核心路径已覆盖）
+  - `GetQueryRoomList` 中 `v.(float64)` → type switch 处理 float64/int/int64
+  - `QueryRoomList` 中 `.([]any)` → 逗号-OK 安全断言
+  - ⚠️ 剩余：`OnMessage` 中 `message.Data.(map[string]any)` 等断言仍有约 15 处未保护，建议随 P2-14 拆分时一并修复
 
-- [ ] **1.5 设置合理的 WebSocket 缓冲区**
-  ```go
-  var upgrader = websocket.Upgrader{
-      ReadBufferSize:  4096,
-      WriteBufferSize: 4096,
-      CheckOrigin: func(r *http.Request) bool {
-          return true
-      },
-  }
-  ```
+- [x] **1.5 设置合理的 WebSocket 缓冲区** ✅ `93f75d4`
+  - `ReadBufferSize` / `WriteBufferSize`: 0 → 4096
 
-- [ ] **1.6 修复 gin.Run() 后无意义 panic**
-  ```go
-  // Before
-  err := httpServer.Run(...)
-  panic(err)
-  
-  // After
-  if err := httpServer.Run(...); err != nil {
-      logs.FatalF("服务器启动失败: %v", err)
-  }
-  ```
+- [x] **1.6 修复 gin.Run() 后无意义 panic** ✅ `93f75d4`
+  - `panic(err)` → `if err != nil { logs.FatalF(...) }`
 
-- [ ] **1.7 修复二进制消息解析越界**
-  ```go
-  // Before
-  op := ClientAction(data[0])
-  
-  // After
-  if len(data) == 0 {
-      c.SendError(OP_ERROR, 0, "empty message")
-      return
-  }
-  op := ClientAction(data[0])
-  ```
+- [x] **1.7 修复二进制消息解析越界** ✅ `f7f96e0`
+  - `data[0]` 访问前增加 `len(data) == 0` 检查
 
-- [ ] **1.8 清理无效的 ServerHub 死循环**
-  - 如果 register 通道不使用，直接删除 ServerHub
-  - 或者改为事件驱动的回调模式
+- [x] **1.8 清理无效的 ServerHub 死循环** ✅ `93f75d4`
+  - 移除未使用的 `register` 通道及注释掉的死代码
+  - `for { select {...} }` → `for range` 简化
+
+- [x] **1.9 全局单例初始化保护** ✅ `f7f96e0`（额外修复，对应 P1-7）
+  - `InitServer()` 和 `Init()` 增加重复初始化检测
+
+- [x] **1.10 修复 ExitClient 锁粒度** ✅ `f7f96e0`（额外修复，对应 P1-9）
+  - `defer unlock` 从 if 分支内移出，锁仅保护 map 写，消息发送在锁外执行
+
+- [x] **1.11 WebSocket 双协程清理竞态** ✅ `f7f96e0`（额外修复，对应 P1-12）
+  - 新增 `closeMu` + `cleanup()` 幂等方法，消除 readMessage/writeMessage 同时关闭连接的 TOCTOU 竞态
+
+- [x] **1.12 房间ID分配优化** ✅ `f7f96e0`（额外修复，对应 P1-13）
+  - O(n) 遍历 → O(1) `allocateRoomId()`：维护 `freedRoomIds` 栈优先复用已释放ID
+  - 统一 `removeRoom()` 方法，所有房间移除路径自动回收ID
 
 ---
 
