@@ -7,8 +7,6 @@ import (
 	"websocket_server/logs"
 	"websocket_server/runtime"
 	"websocket_server/util"
-
-	jsoniter "github.com/json-iterator/go"
 )
 
 // 客户端的状态同步使用的数据结构
@@ -129,22 +127,16 @@ func onRoomFrame(r *Room) {
 		// 缓存数据
 		r.cacheId++
 		r.frameDatas.Push(frameData)
-		var jsonNew = jsoniter.ConfigCompatibleWithStandardLibrary
-		frameDataJsonString, err := jsonNew.Marshal(frameData)
-		if err == nil {
-			// 发送帧数据到客户端
-			for _, v := range r.users.List {
-				c := v.(*Client)
-				var newJson any
-				jsonNew.Unmarshal(frameDataJsonString, &newJson)
-				c.SendToUserOp(&ClientMessage{
-					Op: FData,
-					Data: map[string]any{
-						"t": r.cacheId,
-						"d": newJson,
-					},
-				})
-			}
+		// 发送帧数据到客户端（frameData 直接传入，由 SendToUserOp 内部 Marshal）
+		for _, v := range r.users.List {
+			c := v.(*Client)
+			c.SendToUserOp(&ClientMessage{
+				Op: FData,
+				Data: map[string]any{
+					"t": r.cacheId,
+					"d": frameData,
+				},
+			})
 		}
 		// 帧同步发送间隔
 		time.Sleep(r.interval)
