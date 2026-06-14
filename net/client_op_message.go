@@ -91,8 +91,10 @@ func (c *Client) OnMessage(data []byte) {
 				c.SendError(JOIN_ROOM_ERROR, message.Op, "正在匹配中")
 				return
 			}
-			// 创建一个房间
-			room := c.getApp().CreateRoom(c, RoomConfigOption{})
+			// 创建一个房间（客户端可传入 fps 自定义帧率，不传则默认 30）
+			room := c.getApp().CreateRoom(c, RoomConfigOption{
+				fps: float64(util.GetMapValueToInt(message.Data, "fps")),
+			})
 			logs.InfoM("开始创建房间", room)
 			if room != nil {
 				// 创建成功
@@ -584,7 +586,7 @@ func (c *Client) OnMessage(data []byte) {
 			} else {
 				// 当不存在匹配房间时，如果是自动创建房间时，则开始读取
 				logs.InfoM("match room success, create new room", c.name)
-				r2 := c.getApp().CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: ""})
+				r2 := c.getApp().CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: "", fps: matchOption.FPS})
 				r2.matchOption = matchOption
 				r2.JoinClient(c)
 				c.SendToUserOp(&ClientMessage{

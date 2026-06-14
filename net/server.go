@@ -287,8 +287,16 @@ func (s *App) CreateRoom(user *Client, option RoomConfigOption) *Room {
 
 	create_uid := s.allocateRoomId()
 
-	interval := 1. / 30.
-	interval = float64(time.Second) * interval
+	// 帧率：默认 30 FPS，允许客户端自定义（最低 1，最高 120，0 使用默认值）
+	fps := option.fps
+	if fps <= 0 {
+		fps = 30
+	} else if fps < 1 {
+		fps = 1
+	} else if fps > 120 {
+		fps = 120
+	}
+	interval := float64(time.Second) / fps
 
 	// 如果房间没有定义最大人数，则默认为10个
 	if option.maxCounts == 0 {

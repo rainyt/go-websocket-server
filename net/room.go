@@ -16,8 +16,9 @@ type ClientState struct {
 
 // 房间可选参数
 type RoomConfigOption struct {
-	maxCounts int    // 房间最大容纳人数
-	password  string // 房间密码，加入房间时，需要验证密码
+	maxCounts int     // 房间最大容纳人数
+	password  string  // 房间密码，加入房间时，需要验证密码
+	fps       float64 // 帧同步帧率，0 表示使用默认值 30
 }
 
 type Room struct {
