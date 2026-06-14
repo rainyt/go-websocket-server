@@ -147,16 +147,16 @@ Server（全局单例 CurrentServer）
 
 ### 3.3 🟡 中等级（P2 — 设计与可维护性缺陷）
 
-| # | 位置 | 问题 | 影响 |
-|---|------|------|------|
-| 14 | [net/client_op_message.go](net/client_op_message.go) | `OnMessage` 方法 682 行，47 个 switch-case 分支 | 不可维护，无法单独测试 |
-| 15 | [net/server.go:32-47](net/server.go#L32-L47) | `CallFunc.Call` 使用反射调用扩展API，每次都要 `reflect.ValueOf` 装箱 | 性能低下，类型错误在运行时才暴露 |
-| 16 | [net/room.go:131-139](net/room.go#L131-L139) | 帧同步中 frameData → JSON Marshal → JSON Unmarshal → newJson，刚序列化立即反序列化 | 每帧浪费大量CPU做无用功 |
-| 17 | [net/user.go:](net/users.go) | 用户ID自增计数器，无法水平扩展 | 多实例部署时ID冲突 |
-| 18 | [net/server.go:108-110](net/server.go#L108-L110) | 三个路由注册冗余：`Any("/", ...)` 已匹配所有路径 | 后两个路由永远不会被独立匹配 |
-| 19 | 全局 | 无任何限流、背压、超时机制 | 慢客户端可拖垮整个房间帧同步 |
-| 20 | [util/map.go:14-28](util/map.go#L14-L28) | `Map.Copy()` 通过 JSON Marshal → Unmarshal 实现深拷贝 | 极度低效 |
-| 21 | 全局 | 日志系统两套并存（`logs/` 用 Zap，`util/log.go` 用标准库 log） | 混乱，日志格式不一致 |
+| # | 位置 | 问题 | 影响 | 状态 |
+|---|------|------|------|------|
+| 14 | [net/client_op_message.go](net/client_op_message.go) | `OnMessage` 方法 682 行，47 个 switch-case 分支 | 不可维护，无法单独测试 | ⬜ |
+| 15 | [net/server.go:32-47](net/server.go#L32-L47) | `CallFunc.Call` 使用反射调用扩展API，每次都要 `reflect.ValueOf` 装箱 | 性能低下，类型错误在运行时才暴露 | ⬜ |
+| 16 | [net/room.go:131-139](net/room.go#L131-L139) | 帧同步中 frameData → JSON Marshal → JSON Unmarshal → newJson，刚序列化立即反序列化 | 每帧浪费大量CPU做无用功 | ⬜ |
+| 17 | [net/user.go:](net/users.go) | 用户ID自增计数器，无法水平扩展 | 多实例部署时ID冲突 | ⬜ |
+| 18 | [net/server.go:108-110](net/server.go#L108-L110) | 三个路由注册冗余：`Any("/", ...)` 已匹配所有路径 | 后两个路由永远不会被独立匹配 | ⬜ |
+| 19 | 全局 | 无任何限流、背压、超时机制 | 慢客户端可拖垮整个房间帧同步 | ✅ `1c28bd7` |
+| 20 | [util/map.go:14-28](util/map.go#L14-L28) | `Map.Copy()` 通过 JSON Marshal → Unmarshal 实现深拷贝 | 极度低效 | ✅ `1c28bd7` |
+| 21 | 全局 | 日志系统两套并存（`logs/` 用 Zap，`util/log.go` 用标准库 log） | 混乱，日志格式不一致 | ✅ `1c28bd7` |
 
 ### 3.4 🔵 低等级（P3 — 代码质量问题）
 
