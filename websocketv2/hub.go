@@ -15,45 +15,27 @@ type ServerHub struct {
 	// 绑定用户ID的客户端
 	clientsByUserId map[string]*WebSocket
 
-	// 客户端注册流程
-	register chan *RegisterClient
-
 	// 客户端退出流程
 	unregister chan *RegisterClient
-
-	// 广播消息
-	// broadcast chan *response.ClientJsonMessage
-
-	// 指定广播
-	// target_broadcast chan *response.ClientJsonMessage
-
-	// 使服务器进入维护
-	// server_uphold chan *response.ClientJsonMessage
 }
 
 // 创建服务器中心程序
 func CreateServerHub() *ServerHub {
 	return &ServerHub{
 		clientsByUserId: make(map[string]*WebSocket),
-		register:        make(chan *RegisterClient),
 		unregister:      make(chan *RegisterClient),
-		// broadcast:        make(chan *response.ClientJsonMessage),
-		// target_broadcast: make(chan *response.ClientJsonMessage),
-		// server_uphold:    make(chan *response.ClientJsonMessage),
 	}
 }
 
 var SERVER_HUB *ServerHub
 
+// Init 启动服务器Hub事件循环，处理客户端注销
 func Init() {
 	SERVER_HUB = CreateServerHub()
-	for {
-		select {
-		case data := <-SERVER_HUB.unregister:
-			logs.InfoM("unregister", data.Client)
-			if data.Client.OnUserOutCallback != nil {
-				go data.Client.OnUserOutCallback()
-			}
+	for data := range SERVER_HUB.unregister {
+		logs.InfoM("unregister", data.Client)
+		if data.Client.OnUserOutCallback != nil {
+			go data.Client.OnUserOutCallback()
 		}
 	}
 }

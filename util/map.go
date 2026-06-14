@@ -7,7 +7,7 @@ import (
 )
 
 type Map struct {
-	lock sync.Mutex
+	lock sync.RWMutex
 	Data map[string]any
 }
 
@@ -40,6 +40,8 @@ func (m *Map) Store(key string, data any) {
 }
 
 func (m *Map) GetData(key string, data any) any {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 	return m.Data[key]
 }
 

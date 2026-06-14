@@ -117,11 +117,10 @@ func (c *Client) getApp() *App {
 	return CurrentServer.getApp(c.appid)
 }
 
-// 单独发送数据到当前用户
+// 单独发送数据到当前用户（直接投递到发送通道，由writeMessage协程消费）
 func (c *Client) SendToUser(data []byte) {
-	// 使用线程发送
 	if c.Connected {
-		go c.SendBytes(data)
+		c.SendBytes(data)
 	}
 }
 

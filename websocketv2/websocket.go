@@ -58,11 +58,15 @@ type WebSocket struct {
 	OnWorkData func(data []byte)
 }
 
-// 发送二进制数据
+// 发送二进制数据（非阻塞，通道满时丢弃消息防止发送端阻塞）
 func (client *WebSocket) SendBytes(data []byte) {
-	client.send <- &MessageByte{
+	select {
+	case client.send <- &MessageByte{
 		callback: nil,
 		data:     data,
+	}:
+	default:
+		logs.ErrorF("send channel full, dropping message")
 	}
 }
 

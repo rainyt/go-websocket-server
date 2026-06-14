@@ -108,8 +108,9 @@ func (s *Server) Listen(ip string, port int) {
 	httpServer.Any("/", upgradeToWebsocket)
 	httpServer.GET("/hxonline", upgradeToWebsocket)
 	httpServer.GET("/hxonline/v2", upgradeToWebsocket)
-	err := httpServer.Run(ip + ":" + fmt.Sprint(port))
-	panic(err)
+	if err := httpServer.Run(ip + ":" + fmt.Sprint(port)); err != nil {
+		logs.FatalF("服务器启动失败: %v", err)
+	}
 }
 
 // 开始侦听TLS协议WebSocket服务器（wss）
@@ -121,13 +122,14 @@ func (s *Server) ListenTLS(ip string, port int) {
 	httpServer.Any("/", upgradeToWebsocket)
 	httpServer.GET("/hxonline", upgradeToWebsocket)
 	httpServer.GET("/hxonline/v2", upgradeToWebsocket)
-	err := httpServer.RunTLS(ip+":"+fmt.Sprint(port), "tls.pem", "tls.key")
-	panic(err)
+	if err := httpServer.RunTLS(ip+":"+fmt.Sprint(port), "tls.pem", "tls.key"); err != nil {
+		logs.FatalF("服务器TLS启动失败: %v", err)
+	}
 }
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  0,
-	WriteBufferSize: 0,
+	ReadBufferSize:  4096,
+	WriteBufferSize: 4096,
 	// 解决跨域问题
 	CheckOrigin: func(r *http.Request) bool {
 		return true
