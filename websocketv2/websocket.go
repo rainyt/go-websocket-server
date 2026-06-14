@@ -27,8 +27,8 @@ const (
 	// 使用此周期向对等点发送ping。必须小于pong等待。
 	pingPeriod = (pongWait * 9) / 10
 
-	// 对等方允许的最大消息大小。
-	maxMessageSize = 0
+	// 对等方允许的最大消息大小（64KB，防止恶意大消息 DoS）。
+	maxMessageSize = 64 * 1024
 )
 
 // WebSocket包装器
@@ -49,6 +49,9 @@ type WebSocket struct {
 
 	// 是否已经取消注册过程中
 	isUnregister bool
+
+	// 连接创建时间（用于未登录超时检测）
+	createdAt time.Time
 
 	// 关闭保护锁，防止readMessage/writeMessage双协程重复清理
 	closeMu sync.Mutex
@@ -95,7 +98,7 @@ func (c *WebSocket) cleanup() {
 
 func CreateWebSocketClient(conn *websocket.Conn) *WebSocket {
 	client := &WebSocket{conn: conn, send: make(chan *MessageByte, 256), Connected: true, isClosed: false,
-		isReleased: false, isUnregister: false,
+		isReleased: false, isUnregister: false, createdAt: time.Now(),
 		userData: map[string]any{}, frames: util.CreateArray()}
 	go client.readMessage()
 	go client.writeMessage()
@@ -188,6 +191,11 @@ func (c *WebSocket) writeMessage() {
 
 func (c *WebSocket) onWork(data []byte) {
 	c.OnWorkData(data)
+}
+
+// IsLoginTimeout 检查连接是否超过登录等待时间
+func (c *WebSocket) IsLoginTimeout(timeout time.Duration) bool {
+	return time.Since(c.createdAt) > timeout
 }
 
 // Close 安全关闭WebSocket连接（幂等，可多次调用）

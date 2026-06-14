@@ -11,20 +11,16 @@ type Map struct {
 	Data map[string]any
 }
 
+// Copy 返回 Data 的浅拷贝（遍历复制，比 JSON 往返高效）
+// 注意：所有调用方仅用于序列化下发给客户端或本地只读访问，浅拷贝满足需求
 func (m *Map) Copy() map[string]any {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	v, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(m.Data)
-	if err != nil {
-		return nil
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	result := make(map[string]any, len(m.Data))
+	for k, v := range m.Data {
+		result[k] = v
 	}
-	map2 := &map[string]any{}
-	err2 := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(v, map2)
-	if err2 == nil {
-		return *map2
-	} else {
-		return nil
-	}
+	return result
 }
 
 func CreateMap() *Map {

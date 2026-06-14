@@ -2,11 +2,14 @@ package net
 
 import (
 	"fmt"
+	"time"
 	"websocket_server/logs"
 	"websocket_server/util"
 
 	jsoniter "github.com/json-iterator/go"
 )
+
+const loginTimeout = 10 * time.Second // 未登录连接的最大存活时间
 
 // 消息处理
 func (c *Client) OnMessage(data []byte) {
@@ -27,6 +30,13 @@ func (c *Client) OnMessage(data []byte) {
 		err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(content, &message.Data)
 	}
 	if err == nil {
+		// 未登录连接超时检测：超过 loginTimeout 仍未登录则踢出
+		if c.uid == 0 && message.Op != Login && c.IsLoginTimeout(loginTimeout) {
+			c.SendError(LOGIN_ERROR, message.Op, "登录超时，连接已关闭")
+			c.Close()
+			return
+		}
+
 		if c.uid == 0 || message.Op == Login {
 			logs.InfoM("onWork:", message.Op, message.Data)
 			switch message.Op {
