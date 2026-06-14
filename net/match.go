@@ -28,6 +28,7 @@ type MatchOption struct {
 	Key    string                `json:"key"`    // 匹配key，字符串比较，当为一样的时候，则对匹配，如果为空字符串时，则忽略此匹配
 	Number int                   `json:"number"` // 匹配所需的总人数
 	Range  map[string]MatchRange `json:"range"`  // 匹配参数的最小值，到最大值
+	FPS    float64               `json:"fps"`    // 帧同步帧率，0使用默认值30。匹配时不同FPS不会配对在一起
 }
 
 // 匹配用户
@@ -72,6 +73,7 @@ func (m *Matchs) mathMatch(c *Client) {
 				room := c.getApp().CreateRoom(mg.users.List[0].(*Client), RoomConfigOption{
 					maxCounts: mg.option.Number,
 					password:  "",
+					fps:       mg.option.FPS,
 				})
 				if room == nil {
 					logs.InfoM("匹配错误，房间不存在")
@@ -102,7 +104,6 @@ func (m *Matchs) mathMatch(c *Client) {
 
 // 匹配客户端用户
 func (o *MatchOption) matchClient(c *Client) bool {
-	logs.InfoM("[matchClient]")
 	if c.matchOption == nil {
 		logs.InfoM("用户没有匹配参数")
 		return false
@@ -111,6 +112,19 @@ func (o *MatchOption) matchClient(c *Client) bool {
 	if o.Key == c.matchOption.Key {
 		// 人数验证
 		if o.Number == c.matchOption.Number {
+			// FPS校验（0视为默认值30，不同FPS不匹配）
+			groupFPS := o.FPS
+			if groupFPS == 0 {
+				groupFPS = 30
+			}
+			clientFPS := c.matchOption.FPS
+			if clientFPS == 0 {
+				clientFPS = 30
+			}
+			if groupFPS != clientFPS {
+				logs.InfoM("匹配验证错误：FPS不匹配")
+				return false
+			}
 			// 参数验证
 			for k, mr := range o.Range {
 				v := c.userData.GetData(k, nil)
@@ -135,7 +149,7 @@ func (o *MatchOption) matchClient(c *Client) bool {
 			return false
 		}
 	} else {
-		logs.InfoM("匹配验证错误：key不匹配")
+		// logs.InfoM("匹配验证错误：key不匹配")
 		return false
 	}
 	return true

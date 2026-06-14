@@ -1,13 +1,18 @@
 package net
 
 import (
-	"crypto/tls"
 	"fmt"
-	"net"
+	"net/http"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"time"
 	"websocket_server/logs"
 	"websocket_server/util"
+	"websocket_server/websocketv2"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 var CurrentServer *Server
@@ -88,8 +93,12 @@ func (s *Server) Register(extendsApi any) {
 	}
 }
 
-// 初始化服务器
+// 初始化服务器（全局单例，仅允许初始化一次）
 func (s *Server) InitServer() {
+	if CurrentServer != nil {
+		logs.ErrorF("Server已初始化，忽略重复初始化")
+		return
+	}
 	CurrentServer = s
 	s.ExtendsApi = map[string]*CallFunc{}
 	s.OnClosedApi = map[string]*CallFunc{}
@@ -98,47 +107,61 @@ func (s *Server) InitServer() {
 
 // 开始侦听WebSocket服务器（ws）
 func (s *Server) Listen(ip string, port int) {
+	s.InitServer()
 	fmt.Println("[WS]Server start:" + ip + ":" + fmt.Sprint(port))
-	n, e := net.Listen("tcp", ip+":"+fmt.Sprint(port))
-	if e != nil {
-		fmt.Println(e.Error())
-	}
-	for {
-		c, e := n.Accept()
-		if e == nil {
-			// TODO 当连接人数大于服务器最大限制人数后，直接中断
-			// if s.ConnectCounts >= s.MaxConnectCounts {
-			// 	c.Close()
-			// 	return
-			// }
-			// s.ConnectCounts++
-			// 创建客户端
-			CreateClient(c)
-		}
+	go websocketv2.Init()
+	httpServer := gin.Default()
+	httpServer.Any("/", upgradeToWebsocket)
+	httpServer.GET("/hxonline", upgradeToWebsocket)
+	httpServer.GET("/hxonline/v2", upgradeToWebsocket)
+	httpServer.GET("/hello", healthCheck)
+	if err := httpServer.Run(ip + ":" + fmt.Sprint(port)); err != nil {
+		logs.FatalF("服务器启动失败: %v", err)
 	}
 }
 
 // 开始侦听TLS协议WebSocket服务器（wss）
 func (s *Server) ListenTLS(ip string, port int) {
 	s.InitServer()
-	c, e := tls.LoadX509KeyPair("tls.pem", "tls.key")
-	if e != nil {
-		panic(e)
+	fmt.Println("[WS]Server start:" + ip + ":" + fmt.Sprint(port))
+	go websocketv2.Init()
+	httpServer := gin.Default()
+	httpServer.Any("/", upgradeToWebsocket)
+	httpServer.GET("/hxonline", upgradeToWebsocket)
+	httpServer.GET("/hxonline/v2", upgradeToWebsocket)
+	httpServer.GET("/hello", healthCheck)
+	if err := httpServer.RunTLS(ip+":"+fmt.Sprint(port), "tls.pem", "tls.key"); err != nil {
+		logs.FatalF("服务器TLS启动失败: %v", err)
 	}
-	config := &tls.Config{Certificates: []tls.Certificate{c}}
-	fmt.Println("[WSS]Server start:" + ip + ":" + fmt.Sprint(port))
-	n, e := tls.Listen("tcp", ip+":"+fmt.Sprint(port), config)
-	if e != nil {
-		fmt.Println(e.Error())
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  4096,
+	WriteBufferSize: 4096,
+	// 解决跨域问题
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+// 健康检查接口
+func healthCheck(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status": "ok",
+		"msg":    "hello",
+	})
+}
+
+// 将请求升级为WebSocket
+func upgradeToWebsocket(c *gin.Context) {
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		logs.ErrorM(err)
+		return
 	}
-	for {
-		c, e := n.Accept()
-		if e == nil {
-			// 将用户写入到用户列表中
-			CreateClient(c)
-			// s.users.Push(CreateClient(c))
-		}
-	}
+	logs.InfoM("upgradeToWebsocket...")
+	client := websocketv2.CreateWebSocketClient(conn)
+	CreateClient(client)
 }
 
 // 追加用户
@@ -164,6 +187,9 @@ type App struct {
 	usersSQL     *UserDataSQL // 用户数据库，管理已注册、登陆的用户基础信息
 	msglist      *util.Array  // 全服消息列表
 	msgListeners *util.Array  // 全服消息侦听列表
+	nextRoomId   int64        // 下一个新房间ID（无复用ID时使用）
+	freedRoomIds []int        // 可复用的已释放房间ID栈
+	roomIdMu     sync.Mutex   // 保护 freedRoomIds
 }
 
 // 初始化App
@@ -179,6 +205,40 @@ func (s *App) initApp() {
 	s.usersSQL = &UserDataSQL{
 		users: map[string]*RegisterUserData{},
 	}
+}
+
+// allocateRoomId 分配房间ID（优先复用已释放的ID，无可用时自增新ID）
+func (s *App) allocateRoomId() int {
+	s.roomIdMu.Lock()
+	defer s.roomIdMu.Unlock()
+	if len(s.freedRoomIds) > 0 {
+		// 弹栈复用最小ID
+		id := s.freedRoomIds[len(s.freedRoomIds)-1]
+		s.freedRoomIds = s.freedRoomIds[:len(s.freedRoomIds)-1]
+		return id
+	}
+	return int(atomic.AddInt64(&s.nextRoomId, 1))
+}
+
+// recycleRoomId 回收房间ID供后续复用
+func (s *App) recycleRoomId(id int) {
+	s.roomIdMu.Lock()
+	s.freedRoomIds = append(s.freedRoomIds, id)
+	s.roomIdMu.Unlock()
+}
+
+// removeRoom 从房间列表中移除房间并回收其ID（幂等，重复调用安全）
+func (s *App) removeRoom(room *Room) {
+	room.removeMu.Lock()
+	if room.removed {
+		room.removeMu.Unlock()
+		return
+	}
+	room.removed = true
+	room.removeMu.Unlock()
+
+	s.rooms.Remove(room)
+	s.recycleRoomId(room.id)
 }
 
 // 发送全服消息
@@ -243,16 +303,18 @@ func (s *App) CreateRoom(user *Client, option RoomConfigOption) *Room {
 		return nil
 	}
 
-	create_uid := 1
-	for _, v := range s.rooms.List {
-		room := v.(*Room)
-		if room.id >= create_uid {
-			create_uid = room.id + 1
-		}
-	}
+	create_uid := s.allocateRoomId()
 
-	interval := 1. / 60.
-	interval = float64(time.Second) * interval
+	// 帧率：默认 30 FPS，允许客户端自定义（最低 1，最高 120，0 使用默认值）
+	fps := option.fps
+	if fps <= 0 {
+		fps = 30
+	} else if fps < 1 {
+		fps = 1
+	} else if fps > 120 {
+		fps = 120
+	}
+	interval := float64(time.Second) / fps
 
 	// 如果房间没有定义最大人数，则默认为10个
 	if option.maxCounts == 0 {
@@ -306,8 +368,40 @@ func (s *App) ExitRoom(c *Client) {
 	if c.room != nil {
 		room := c.room
 		c.room.ExitClient(c)
-		if room.users.Length() == 0 {
-			s.rooms.Remove(room)
+		if room.users == nil || room.users.List == nil || room.users.Length() == 0 {
+			s.removeRoom(room)
+		}
+	}
+}
+
+// 尝试退出房间
+func (s *App) TryExitRoom(c *Client) {
+	logs.InfoM("Try Exit Room, ready:", c.name)
+	if c.room != nil {
+		hasConnected := false
+		room := c.room
+		for _, v := range room.users.List {
+			client := v.(*Client)
+			if client != c && client.Connected {
+				logs.InfoM("Try Exit Room Exist Client...", client.name)
+				hasConnected = true
+				break
+			}
+		}
+		if !hasConnected {
+			// 所有人已经离开
+			var clients []*Client = []*Client{}
+			for _, v := range room.users.List {
+				client := v.(*Client)
+				clients = append(clients, client)
+			}
+			for _, v := range clients {
+				room.ExitClient(v)
+			}
+			s.removeRoom(room)
+			logs.InfoM("Try Exit Room...", room.id)
+		} else {
+			logs.InfoM("Try Exit Room fail, hasConnected.", room.id)
 		}
 	}
 }
@@ -337,12 +431,14 @@ type RoomInfo struct {
 	Password  bool   `json:"password"`  // 是否存在密码
 	Master    string `json:"master"`    // 房主名称
 	Lock      bool   `json:"lock"`      // 房间是否已锁定
+	Data      any    `json:"data"`      // 对应customData数据
 }
 
 // 获取指定范围的房间列表状态（仅返回房间当前人数、房间ID、是否有密码等基础信息）
 func (s *App) GetRoomList(page int, counts int) any {
 	len := s.rooms.Length()
 	allpage := int(len/counts) + 1
+	fmt.Println("查询房间page=" + fmt.Sprint(page) + "allpage=" + fmt.Sprint(allpage))
 	roomLen := s.rooms.Length()
 	if page > 0 && page <= allpage && roomLen > 0 {
 		// 开始截取的位置
@@ -364,10 +460,55 @@ func (s *App) GetRoomList(page int, counts int) any {
 					Password:  r.option.password != "",
 					Master:    r.master.name,
 					Lock:      r.lock,
+					Data:      r.customData.Copy(),
 				})
 			}
 			return arr
 		}
+	}
+	return nil
+}
+
+// 根据房间ID查询房间列表
+func (s *App) GetQueryRoomList(roomids []any) any {
+	hasId := func(id int) bool {
+		for _, v := range roomids {
+			// 安全处理 JSON 反序列化的多种数字类型
+			switch val := v.(type) {
+			case float64:
+				if val == float64(id) {
+					return true
+				}
+			case int:
+				if val == id {
+					return true
+				}
+			case int64:
+				if int(val) == id {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	list := s.rooms.List
+	if list != nil {
+		arr := []RoomInfo{}
+		for _, v := range list {
+			r := v.(*Room)
+			if hasId(r.id) {
+				arr = append(arr, RoomInfo{
+					Id:        r.id,
+					Counts:    r.users.Length(),
+					MaxCounts: r.option.maxCounts,
+					Password:  r.option.password != "",
+					Master:    r.master.name,
+					Lock:      r.lock,
+					Data:      r.customData.Copy(),
+				})
+			}
+		}
+		return arr
 	}
 	return nil
 }

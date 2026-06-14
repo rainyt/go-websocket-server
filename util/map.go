@@ -1,51 +1,44 @@
 package util
 
 import (
-	"encoding/json"
 	"sync"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 type Map struct {
-	lock sync.Mutex
-	data map[string]any
+	lock sync.RWMutex
+	Data map[string]any
 }
 
+// Copy 返回 Data 的浅拷贝（遍历复制，比 JSON 往返高效）
+// 注意：所有调用方仅用于序列化下发给客户端或本地只读访问，浅拷贝满足需求
 func (m *Map) Copy() map[string]any {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	v, err := json.Marshal(m.data)
-	if err != nil {
-		return nil
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	result := make(map[string]any, len(m.Data))
+	for k, v := range m.Data {
+		result[k] = v
 	}
-	map2 := &map[string]any{}
-	err2 := json.Unmarshal(v, map2)
-	if err2 == nil {
-		return *map2
-	} else {
-		return nil
-	}
+	return result
 }
 
 func CreateMap() *Map {
 	return &Map{
-		data: map[string]any{},
+		Data: map[string]any{},
 	}
 }
 
 func (m *Map) Store(key string, data any) {
 	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.data[key] = data
+	m.Data[key] = data
+	m.lock.Unlock()
 }
 
 func (m *Map) GetData(key string, data any) any {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	v, b := m.data[key]
-	if b {
-		return v
-	}
-	return data
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	return m.Data[key]
 }
 
 func GetMapValueToInt(data any, key string) int {
@@ -96,9 +89,9 @@ func GetMapValueToString(data any, key string) string {
 }
 
 func SetJsonTo(data any, to any) bool {
-	j, b := json.Marshal(data)
+	j, b := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(data)
 	if b == nil {
-		e := json.Unmarshal(j, &to)
+		e := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(j, &to)
 		if e == nil {
 			return true
 		} else {
