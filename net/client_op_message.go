@@ -2,14 +2,11 @@ package net
 
 import (
 	"fmt"
-	"time"
 	"websocket_server/logs"
 	"websocket_server/util"
 
 	jsoniter "github.com/json-iterator/go"
 )
-
-const loginTimeout = 10 * time.Second // 未登录连接的最大存活时间
 
 // 消息处理
 func (c *Client) OnMessage(data []byte) {
@@ -17,28 +14,17 @@ func (c *Client) OnMessage(data []byte) {
 	message := &ClientMessage{}
 	var err error
 	// 如果是二进制数据，则需要解析处理，第一位是op操作符，剩余的是内容
-	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(data, &message)
-	// 如果无法以JSON解析时，则使用二进制解析
-	if err != nil {
-		if len(data) == 0 {
-			c.SendError(OP_ERROR, 0, "空消息")
-			return
-		}
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
+	if c.FrameIsBinary {
 		op := ClientAction(data[0])
 		content := data[1:]
 		message.Op = op
-		err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(content, &message.Data)
+		err = json.Unmarshal(content, &message.Data)
+	} else {
+		err = json.Unmarshal(data, &message)
 	}
 	if err == nil {
-		// 未登录连接超时检测：超过 loginTimeout 仍未登录则踢出
-		if c.uid == 0 && message.Op != Login && c.IsLoginTimeout(loginTimeout) {
-			c.SendError(LOGIN_ERROR, message.Op, "登录超时，连接已关闭")
-			c.Close()
-			return
-		}
-
 		if c.uid == 0 || message.Op == Login {
-			logs.InfoM("onWork:", message.Op, message.Data)
 			switch message.Op {
 			case Login:
 				if c.uid == 0 {
@@ -57,11 +43,13 @@ func (c *Client) OnMessage(data []byte) {
 						return
 					}
 					// 绑定AppId
-					logs.InfoM("准备登录：", openId.(string))
 					c.appid = appId
 					c.getApp().users.Push(c)
 					// 只需要用户名和OpenId即可登陆
 					userData := c.getApp().usersSQL.login(c, openId.(string), userName.(string))
+					if userData == nil {
+						return
+					}
 					logs.InfoM("登陆成功：", openId.(string), userData)
 					c.SendToUserOp(&ClientMessage{
 						Op: Login,
@@ -91,10 +79,8 @@ func (c *Client) OnMessage(data []byte) {
 				c.SendError(JOIN_ROOM_ERROR, message.Op, "正在匹配中")
 				return
 			}
-			// 创建一个房间（客户端可传入 fps 自定义帧率，不传则默认 30）
-			room := c.getApp().CreateRoom(c, RoomConfigOption{
-				fps: float64(util.GetMapValueToInt(message.Data, "fps")),
-			})
+			// 创建一个房间
+			room := c.getApp().CreateRoom(c, RoomConfigOption{})
 			logs.InfoM("开始创建房间", room)
 			if room != nil {
 				// 创建成功
@@ -162,7 +148,7 @@ func (c *Client) OnMessage(data []byte) {
 		case StopFrameSync:
 			// 开始停止帧同步
 			if c.room != nil {
-				c.room.StopFrameSync(false)
+				c.room.StopFrameSync()
 				c.SendToUserOp(&ClientMessage{
 					Op: StopFrameSync,
 				})
@@ -170,8 +156,9 @@ func (c *Client) OnMessage(data []byte) {
 				c.SendError(STOP_FRAME_SYNC_ERROR, message.Op, "房间不存在，无法停止帧同步")
 			}
 		case StopFrameSyncWithoutUnlock:
+			// 停止帧同步但保持房间锁定（用于回合重置）
 			if c.room != nil {
-				c.room.StopFrameSync(true)
+				c.room.StopFrameSyncWithoutUnlock()
 				c.SendToUserOp(&ClientMessage{
 					Op: StopFrameSyncWithoutUnlock,
 				})
@@ -212,7 +199,7 @@ func (c *Client) OnMessage(data []byte) {
 			// 转发房间信息
 			if c.room != nil {
 				c.room.recordRoomMessage(message)
-
+				
 				// 处理角色选择状态同步请求
 				dataMap, isMap := message.Data.(map[string]any)
 				if isMap {
@@ -223,7 +210,7 @@ func (c *Client) OnMessage(data []byte) {
 							"type":   "roleSelectUpdate",
 							"action": "syncState",
 						}
-
+						
 						c.room.userStateLock.Lock()
 						for uid, state := range c.room.userState {
 							if state != nil && state.Data != nil {
@@ -233,7 +220,7 @@ func (c *Client) OnMessage(data []byte) {
 								groupIndex := util.GetMapValueToInt(allData, "groupIndex")
 								isLocked := util.GetMapValueToInt(allData, "isLocked")
 								role := util.GetMapValueToAny(allData, "role")
-
+								
 								// 找到对应的座位
 								for i, v := range c.room.users.List {
 									user := v.(*Client)
@@ -259,7 +246,7 @@ func (c *Client) OnMessage(data []byte) {
 							}
 						}
 						c.room.userStateLock.Unlock()
-
+						
 						// 发送同步状态给请求者
 						c.SendToUserOp(&ClientMessage{
 							Op:   RoomMessage,
@@ -281,7 +268,7 @@ func (c *Client) OnMessage(data []byte) {
 						return
 					}
 				}
-
+				
 				// 需要知道是哪个用户发的数据
 				c.room.SendToAllUserOp(&ClientMessage{
 					Op: RoomMessage,
@@ -542,18 +529,10 @@ func (c *Client) OnMessage(data []byte) {
 			if c.room == nil {
 				c.SendError(ROOM_NOT_EXSIT, message.Op, "房间不存在")
 			} else {
-				// 停止帧同步，同时清空帧缓存
-				c.room.StopFrameSync(false)
+				// 停止帧同步，同时清空帧缓存，重置房间状态并广播给所有玩家
+				c.room.StopFrameSync()
 				c.room.frameDatas = util.CreateArray()
-				// 重置房间状态
-				c.room.roomState = &ClientState{
-					Data: util.CreateMap(),
-				}
-				// 重置用户状态
-				c.room.userState = map[int]*ClientState{}
-				c.SendToUserOp(&ClientMessage{
-					Op: ResetRoom,
-				})
+				c.room.ResetRoomAndBroadcast()
 			}
 		case SetRoomMatchOption:
 			// 设置匹配参数
@@ -575,37 +554,34 @@ func (c *Client) OnMessage(data []byte) {
 			}
 		case MatchRoom:
 			// 匹配房间
-			logs.InfoM("match room user:", c.name, ",", message.Data)
 			if c.room != nil {
-				logs.InfoM("match room fail, exsits room.", c.name)
-				c.room.ExitClient(c)
-			}
-			matchOption := &MatchOption{}
-			util.SetJsonTo(message.Data, matchOption)
-			c.matchOption = matchOption
-			r, err := c.getApp().MatchRoom(c)
-			if err == nil {
-				logs.InfoM("match room success", c.name)
-				c.SendToUserOp(&ClientMessage{
-					Op: MatchRoom,
-					Data: map[string]any{
-						"id": r.id,
-					}},
-				)
+				c.SendError(JOIN_ROOM_ERROR, message.Op, "你已经在房间中")
 			} else {
-				// 当不存在匹配房间时，如果是自动创建房间时，则开始读取
-				logs.InfoM("match room success, create new room", c.name)
-				r2 := c.getApp().CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: "", fps: matchOption.FPS})
-				r2.matchOption = matchOption
-				r2.JoinClient(c)
-				c.SendToUserOp(&ClientMessage{
-					Op: MatchRoom,
-					Data: map[string]any{
-						"id": r2.id,
-					}},
-				)
+				matchOption := &MatchOption{}
+				util.SetJsonTo(message.Data, matchOption)
+				c.matchOption = matchOption
+				r, err := c.getApp().MatchRoom(c)
+				if err == nil {
+					c.SendToUserOp(&ClientMessage{
+						Op: MatchRoom,
+						Data: map[string]any{
+							"id": r.id,
+						}},
+					)
+				} else {
+					// 当不存在匹配房间时，如果是自动创建房间时，则开始读取
+					r2 := c.getApp().CreateRoom(c, RoomConfigOption{maxCounts: matchOption.Number, password: ""})
+					r2.matchOption = matchOption
+					r2.JoinClient(c)
+					c.SendToUserOp(&ClientMessage{
+						Op: MatchRoom,
+						Data: map[string]any{
+							"id": r2.id,
+						}},
+					)
+				}
+				c.matchOption = nil
 			}
-			c.matchOption = nil
 		case GetRoomList:
 			// 获取房间列表
 			page := util.GetMapValueToInt(message.Data, "page")
@@ -681,23 +657,6 @@ func (c *Client) OnMessage(data []byte) {
 				api.Call(c, message, util.GetMapValueToAny(message.Data, "d"))
 			} else {
 				c.SendError(OP_ERROR, message.Op, "无效扩展方法")
-			}
-		case QueryRoomList:
-			roomidsRaw := util.GetMapValueToAny(message.Data, "roomids")
-			roomids, ok := roomidsRaw.([]any)
-			if ok && roomids != nil {
-				roomInfo := c.getApp().GetQueryRoomList(roomids)
-				if roomInfo == nil {
-					roomInfo = []any{}
-				}
-				c.SendToUserOp(&ClientMessage{
-					Op: QueryRoomList,
-					Data: map[string]any{
-						"list": roomInfo,
-					},
-				})
-			} else {
-				c.SendError(OP_ERROR, message.Op, "roomids参数错误")
 			}
 		default:
 			c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
