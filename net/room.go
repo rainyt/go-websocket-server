@@ -37,6 +37,8 @@ type Room struct {
 	matchOption   *MatchOption         // 房间匹配参数
 	customData    *util.Map            // 房间自定义数据
 	oldMsgs       *util.Array          // 历史消息，会记录所有`RoomMessage`信息
+	removed       bool                 // 是否已从 App 中移除（防止重复回收房间ID）
+	removeMu      sync.Mutex           // 保护 removed 标志的并发安全
 }
 
 // 更新自定义数据

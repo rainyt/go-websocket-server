@@ -114,6 +114,7 @@ func (s *Server) Listen(ip string, port int) {
 	httpServer.Any("/", upgradeToWebsocket)
 	httpServer.GET("/hxonline", upgradeToWebsocket)
 	httpServer.GET("/hxonline/v2", upgradeToWebsocket)
+	httpServer.GET("/hello", healthCheck)
 	if err := httpServer.Run(ip + ":" + fmt.Sprint(port)); err != nil {
 		logs.FatalF("服务器启动失败: %v", err)
 	}
@@ -128,6 +129,7 @@ func (s *Server) ListenTLS(ip string, port int) {
 	httpServer.Any("/", upgradeToWebsocket)
 	httpServer.GET("/hxonline", upgradeToWebsocket)
 	httpServer.GET("/hxonline/v2", upgradeToWebsocket)
+	httpServer.GET("/hello", healthCheck)
 	if err := httpServer.RunTLS(ip+":"+fmt.Sprint(port), "tls.pem", "tls.key"); err != nil {
 		logs.FatalF("服务器TLS启动失败: %v", err)
 	}
@@ -140,6 +142,14 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
+}
+
+// 健康检查接口
+func healthCheck(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status": "ok",
+		"msg":    "hello",
+	})
 }
 
 // 将请求升级为WebSocket
@@ -217,8 +227,16 @@ func (s *App) recycleRoomId(id int) {
 	s.roomIdMu.Unlock()
 }
 
-// removeRoom 从房间列表中移除房间并回收其ID
+// removeRoom 从房间列表中移除房间并回收其ID（幂等，重复调用安全）
 func (s *App) removeRoom(room *Room) {
+	room.removeMu.Lock()
+	if room.removed {
+		room.removeMu.Unlock()
+		return
+	}
+	room.removed = true
+	room.removeMu.Unlock()
+
 	s.rooms.Remove(room)
 	s.recycleRoomId(room.id)
 }
