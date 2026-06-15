@@ -351,12 +351,17 @@ func (s *App) JoinRoom(user *Client, roomid int, password string) (*Room, error)
 	for _, v := range s.rooms.List {
 		room := v.(*Room)
 		if room.id == roomid {
-			// 要处于非锁定、人数足够、密码验证通过才能加入
-			if !room.lock && room.users.Length() < room.option.maxCounts && room.option.password == password {
-				room.JoinClient(user)
-			} else {
-				return nil, fmt.Errorf("房间不匹配，无法进入")
+			// 逐一校验加入条件，返回明确的错误信息
+			if room.lock {
+				return nil, fmt.Errorf("房间已锁定，无法进入")
 			}
+			if room.users.Length() >= room.option.maxCounts {
+				return nil, fmt.Errorf("房间已满，无法进入")
+			}
+			if room.option.password != password {
+				return nil, fmt.Errorf("房间密码错误，无法进入")
+			}
+			room.JoinClient(user)
 			return room, nil
 		}
 	}
