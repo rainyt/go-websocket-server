@@ -386,6 +386,7 @@ func (c *Client) OnMessage(data []byte) {
 			} else {
 				if c.room.master == c {
 					c.room.lock = false
+					c.room.cleanZombieClients()
 					c.SendToUserOp(&ClientMessage{
 						Op: LockRoom,
 					})
