@@ -306,6 +306,7 @@ func (r *Room) ExitClient(client *Client) {
 			r.users.Remove(client)
 			client.room = nil
 			client.seat = 0
+			r.cleanZombieClients()
 			if r.users.Length() == 0 {
 				// 房间已经不存在用户了，则删除当前房间
 				client.getApp().removeRoom(r)
