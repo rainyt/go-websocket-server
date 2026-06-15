@@ -177,7 +177,24 @@ func (r *Room) StopFrameSync(keepLock bool) {
 		r.lock = false
 	}
 	r.cacheId = 0
+	// 清理房间的僵尸玩家（离线但未退出房间的玩家）
+	r.cleanZombieClients()
 	logs.InfoM("StopFrameSync")
+}
+
+// 清理房间的僵尸玩家（离线但未退出房间的玩家）
+func (r *Room) cleanZombieClients() {
+	var zombies []*Client
+	for _, v := range r.users.List {
+		c := v.(*Client)
+		if !c.Connected {
+			zombies = append(zombies, c)
+		}
+	}
+	for _, c := range zombies {
+		logs.InfoM("清理僵尸玩家:", c.name, "房间ID:", r.id)
+		r.ExitClient(c)
+	}
 }
 
 // 给房间的所有用户发送消息
