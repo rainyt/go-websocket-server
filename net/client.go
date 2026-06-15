@@ -50,9 +50,9 @@ const (
 	UpdateRoomUserData         ClientAction = 34 // 更新房间用户中的数据
 	GetRoomList                ClientAction = 35 // 获取房间列表
 	SendServerMsg              ClientAction = 36 // 发送全服消息
-	GetServerMsg               ClientAction = 37 // 接收到全服消息
-	ListenerServerMsg          ClientAction = 38 // 侦听全服消息
-	CannelListenerServerMsg    ClientAction = 39 // 取消侦听全服消息
+	EVENT_GetServerMsg          ClientAction = 37 // 接收到全服消息
+	ListenerServer          ClientAction = 38 // 侦听服务器通知（data中可指定op，默认为EVENT_GetServerMsg）
+	CannelListenerServer    ClientAction = 39 // 取消侦听服务器通知（data中可指定op，默认为EVENT_GetServerMsg）
 	GetUserDataByUID           ClientAction = 40 // 通过UID获取用户数据
 	GetServerOldMsg            ClientAction = 41 // 获取全服历史消息
 	ExtendsCall                ClientAction = 42 // 调用扩展方法
@@ -63,6 +63,7 @@ const (
 	StopFrameSyncWithoutUnlock ClientAction = 47 // 停止帧同步但不解锁房间（适用于游戏结束后，等待玩家结算的情况
 	SwitchSeat                 ClientAction = 48 // 更换座位
 	SeatUpdate                 ClientAction = 49 // 座位更新通知
+	EVENT_RoomListChanged            ClientAction = 50 // 房间列表变更通知
 )
 
 type ClientMessage struct {
@@ -166,8 +167,8 @@ func (c *Client) OnUserOut() {
 		// 从服务器列表中删除
 	}
 	c.getApp().users.Remove(c)
-	// 从服务器消息侦听中删除
-	c.getApp().CannelListenerServerMsg(c)
+	// 从所有服务器通知侦听中删除
+	c.getApp().removeAllListeners(c)
 	// 从服务器匹配列表中取消
 	c.getApp().matchs.cannelMatchUser(c)
 	// 关闭缓存区

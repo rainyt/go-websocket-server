@@ -181,15 +181,15 @@ func (s *Server) getApp(appid string) *App {
 }
 
 type App struct {
-	users        *util.Array  // 用户列表
-	rooms        *util.Array  // 房间列表
-	matchs       *Matchs      // 匹配管理
-	usersSQL     *UserDataSQL // 用户数据库，管理已注册、登陆的用户基础信息
-	msglist      *util.Array  // 全服消息列表
-	msgListeners *util.Array  // 全服消息侦听列表
-	nextRoomId   int64        // 下一个新房间ID（无复用ID时使用）
-	freedRoomIds []int        // 可复用的已释放房间ID栈
-	roomIdMu     sync.Mutex   // 保护 freedRoomIds
+	users              *util.Array  // 用户列表
+	rooms              *util.Array  // 房间列表
+	matchs             *Matchs      // 匹配管理
+	usersSQL           *UserDataSQL // 用户数据库，管理已注册、登陆的用户基础信息
+	msglist            *util.Array                       // 全服消息列表
+	listeners          map[ClientAction]*util.Array        // 统一通知侦听表（按OP分组）
+	nextRoomId         int64        // 下一个新房间ID（无复用ID时使用）
+	freedRoomIds       []int        // 可复用的已释放房间ID栈
+	roomIdMu           sync.Mutex   // 保护 freedRoomIds
 }
 
 // 初始化App
@@ -201,7 +201,7 @@ func (s *App) initApp() {
 	s.users = util.CreateArray()
 	s.rooms = util.CreateArray()
 	s.msglist = util.CreateArray()
-	s.msgListeners = util.CreateArray()
+	s.listeners = map[ClientAction]*util.Array{}
 	s.usersSQL = &UserDataSQL{
 		users: map[string]*RegisterUserData{},
 	}
@@ -239,6 +239,7 @@ func (s *App) removeRoom(room *Room) {
 
 	s.rooms.Remove(room)
 	s.recycleRoomId(room.id)
+	s.broadcastRoomListChanged()
 }
 
 // 发送全服消息
@@ -253,27 +254,34 @@ func (s *App) SendServerMsg(user *Client, message *ClientMessage) {
 	if s.msglist.Length() > 100 {
 		s.msglist.Remove(s.msglist.List[0])
 	}
-	for _, v := range s.msgListeners.List {
-		u := v.(*Client)
-		if u != user {
-			u.SendToUserOp(&ClientMessage{
-				Op:   GetServerMsg,
-				Data: serMsg,
-			})
-		}
+	s.notifyListeners(EVENT_GetServerMsg, serMsg, user)
+}
+
+// 添加侦听（按OP订阅服务器通知）
+func (s *App) addListener(user *Client, op ClientAction) {
+	arr, ok := s.listeners[op]
+	if !ok {
+		arr = util.CreateArray()
+		s.listeners[op] = arr
+	}
+	if arr.IndexOf(user) == -1 {
+		arr.Push(user)
 	}
 }
 
-// 侦听全服消息
-func (s *App) ListenerServerMsg(user *Client) {
-	if s.msgListeners.IndexOf(user) == -1 {
-		s.msgListeners.Push(user)
+// 移除指定OP的侦听
+func (s *App) removeListener(user *Client, op ClientAction) {
+	arr, ok := s.listeners[op]
+	if ok {
+		arr.Remove(user)
 	}
 }
 
-// 取消侦听全服消息
-func (s *App) CannelListenerServerMsg(user *Client) {
-	s.msgListeners.Remove(user)
+// 移除用户的所有侦听（断线时调用）
+func (s *App) removeAllListeners(user *Client) {
+	for _, arr := range s.listeners {
+		arr.Remove(user)
+	}
 }
 
 // 获取全部服消息列表
@@ -290,11 +298,43 @@ func (s *App) GetServerMsg(user *Client, newCounts int) {
 	for i := startIndex; i < s.msglist.Length(); i++ {
 		o := s.msglist.List[i].(*util.Object)
 		user.SendToUserOp(&ClientMessage{
-			Op:   GetServerMsg,
+			Op:   EVENT_GetServerMsg,
 			Data: o.Data,
 		})
 	}
 
+}
+
+
+// 统一通知（按OP向所有订阅者推送）
+func (s *App) notifyListeners(op ClientAction, data any, excludeUser ...*Client) {
+	arr, ok := s.listeners[op]
+	if !ok {
+		return
+	}
+	for _, v := range arr.List {
+		u := v.(*Client)
+		skip := false
+		for _, ex := range excludeUser {
+			if u == ex {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			u.SendToUserOp(&ClientMessage{
+				Op:   op,
+				Data: data,
+			})
+		}
+	}
+}
+
+// 广播房间列表变更通知（notifyListeners的便捷封装）
+func (s *App) broadcastRoomListChanged() {
+	s.notifyListeners(EVENT_RoomListChanged, map[string]any{
+		"type": "roomListChanged",
+	})
 }
 
 // 创建房间
@@ -339,6 +379,7 @@ func (s *App) CreateRoom(user *Client, option RoomConfigOption) *Room {
 	}
 	s.rooms.Push(&room)
 	room.JoinClient(user)
+	s.broadcastRoomListChanged()
 	return &room
 }
 

@@ -77,7 +77,7 @@ func (c *Client) OnMessage(data []byte) {
 						},
 					})
 				}
-			default:
+		default:
 				c.SendError(OP_ERROR, message.Op, "无效的操作指令："+fmt.Sprint(message.Op))
 			}
 			return
@@ -382,6 +382,7 @@ func (c *Client) OnMessage(data []byte) {
 			} else {
 				if c.room.master == c {
 					c.room.lock = true
+					c.getApp().broadcastRoomListChanged()
 					c.SendToUserOp(&ClientMessage{
 						Op: LockRoom,
 					})
@@ -396,6 +397,7 @@ func (c *Client) OnMessage(data []byte) {
 			} else {
 				if c.room.master == c {
 					c.room.lock = false
+					c.getApp().broadcastRoomListChanged()
 					c.room.cleanZombieClients()
 					c.SendToUserOp(&ClientMessage{
 						Op: LockRoom,
@@ -415,6 +417,7 @@ func (c *Client) OnMessage(data []byte) {
 						Op: UpdateRoomCustomData,
 					})
 					c.room.onRoomChanged()
+					c.getApp().broadcastRoomListChanged()
 				} else {
 					c.SendError(ROOM_PERMISSION_DENIED, message.Op, "需要房主操作")
 				}
@@ -435,6 +438,7 @@ func (c *Client) OnMessage(data []byte) {
 							Op: UpdateRoomOption,
 						})
 						c.room.onRoomChanged()
+						c.getApp().broadcastRoomListChanged()
 					} else {
 						c.SendError(DATA_ERROR, message.Op, "数据结构错误")
 					}
@@ -645,17 +649,25 @@ func (c *Client) OnMessage(data []byte) {
 			c.SendToUserOp(&ClientMessage{
 				Op: SendServerMsg,
 			})
-		case ListenerServerMsg:
-			// 侦听全服消息
-			c.getApp().ListenerServerMsg(c)
+		case ListenerServer:
+			// 统一侦听服务器通知（data中可指定op，默认为EVENT_GetServerMsg）
+			targetOp := ClientAction(util.GetMapValueToInt(message.Data, "op"))
+			if targetOp == 0 {
+				targetOp = EVENT_GetServerMsg
+			}
+			c.getApp().addListener(c, targetOp)
 			c.SendToUserOp(&ClientMessage{
-				Op: ListenerServerMsg,
+				Op: ListenerServer,
 			})
-		case CannelListenerServerMsg:
-			// 取消全服消息
-			c.getApp().CannelListenerServerMsg(c)
+		case CannelListenerServer:
+			// 统一取消侦听服务器通知（data中可指定op，默认为EVENT_GetServerMsg）
+			targetOp := ClientAction(util.GetMapValueToInt(message.Data, "op"))
+			if targetOp == 0 {
+				targetOp = EVENT_GetServerMsg
+			}
+			c.getApp().removeListener(c, targetOp)
 			c.SendToUserOp(&ClientMessage{
-				Op: CannelListenerServerMsg,
+				Op: CannelListenerServer,
 			})
 		case GetUserDataByUID:
 			// 通过UID获取用户数据

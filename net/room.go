@@ -168,6 +168,8 @@ func (r *Room) StartFrameSync() {
 		Op: FrameSyncReady,
 	}, nil)
 	go onRoomFrame(r)
+	// 通知大厅房间列表变更
+	r.master.getApp().broadcastRoomListChanged()
 }
 
 // 停止帧同步
@@ -179,6 +181,8 @@ func (r *Room) StopFrameSync(keepLock bool) {
 	r.cacheId = 0
 	// 清理房间的僵尸玩家（离线但未退出房间的玩家）
 	r.cleanZombieClients()
+	// 通知大厅房间列表变更
+	r.master.getApp().broadcastRoomListChanged()
 	logs.InfoM("StopFrameSync")
 }
 
@@ -280,6 +284,8 @@ func (r *Room) JoinClient(client *Client) {
 		}, client)
 		// 其他用户通知房间更新
 		r.onRoomChanged()
+		// 通知大厅房间列表变更
+		client.getApp().broadcastRoomListChanged()
 		logs.InfoM("加入用户行为结束", client.name)
 	}
 }
@@ -334,6 +340,8 @@ func (r *Room) ExitClient(client *Client) {
 
 				// 通知更新房间信息
 				r.onRoomChanged()
+				// 通知大厅房间列表变更
+				client.getApp().broadcastRoomListChanged()
 
 				logs.InfoM(client.name, "：离开房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 			}
