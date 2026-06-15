@@ -197,6 +197,53 @@ func (r *Room) cleanZombieClients() {
 	}
 }
 
+// 自动分配最小可用座位号
+func (r *Room) assignSeat(client *Client) {
+	taken := map[int]bool{}
+	for _, v := range r.users.List {
+		c := v.(*Client)
+		if c != client && c.seat > 0 {
+			taken[c.seat] = true
+		}
+	}
+	for seat := 1; seat <= r.option.maxCounts; seat++ {
+		if !taken[seat] {
+			client.seat = seat
+			logs.InfoM(client.name, "自动分配座位:", seat)
+			return
+		}
+	}
+}
+
+// 更换座位
+func (r *Room) SwitchSeat(client *Client, targetSeat int) error {
+	if targetSeat < 1 || targetSeat > r.option.maxCounts {
+		return fmt.Errorf("座位号无效，有效范围为1~%d", r.option.maxCounts)
+	}
+	// 检查目标座位是否已被占用
+	for _, v := range r.users.List {
+		c := v.(*Client)
+		if c != client && c.seat == targetSeat {
+			return fmt.Errorf("座位%d已被占用", targetSeat)
+		}
+	}
+	oldSeat := client.seat
+	client.seat = targetSeat
+	logs.InfoM(client.name, "更换座位:", oldSeat, "->", targetSeat, "房间ID:", r.id)
+	// 通知房间内所有成员座位变更
+	r.SendToAllUserOp(&ClientMessage{
+		Op: SeatUpdate,
+		Data: map[string]any{
+			"uid":     client.uid,
+			"oldSeat": oldSeat,
+			"newSeat": targetSeat,
+		},
+	}, nil)
+	// 通知房间信息更新
+	r.onRoomChanged()
+	return nil
+}
+
 // 给房间的所有用户发送消息
 func (r *Room) SendToAllUser(data []byte) {
 	for _, v := range r.users.List {
@@ -217,6 +264,8 @@ func (r *Room) SendToAllUserOp(data *ClientMessage, igoneClient *Client) {
 func (r *Room) JoinClient(client *Client) {
 	if client.room == nil {
 		r.users.Push(client)
+		// 自动分配最小可用座位号
+		r.assignSeat(client)
 		logs.InfoM(client.name, "加入房间["+fmt.Sprint(r.id)+"]，当前房间人数：", r.users.Length())
 		client.room = r
 		logs.InfoM("发送房间消息给用户", client.name)
@@ -245,17 +294,12 @@ func (r *Room) onRoomChanged() {
 func (r *Room) ExitClient(client *Client) {
 	if client.room != nil && r.users != nil && r.users.List != nil {
 		if client.room.id == r.id {
-			// 找出用户在房间中的座位
-			var seatIndex int = -1
-			for i, v := range r.users.List {
-				if v.(*Client).uid == client.uid {
-					seatIndex = i
-					break
-				}
-			}
+			// 记录退出前的座位号，用于判断是否需要取消角色选择
+			exitedSeat := client.seat
 
 			r.users.Remove(client)
 			client.room = nil
+			client.seat = 0
 			if r.users.Length() == 0 {
 				// 房间已经不存在用户了，则删除当前房间
 				client.getApp().removeRoom(r)
@@ -275,8 +319,8 @@ func (r *Room) ExitClient(client *Client) {
 					Data: client.GetUserData(),
 				}, client)
 
-				// 如果退出的是参战方（座位0或1），通知所有成员取消角色选择
-				if seatIndex >= 0 && seatIndex <= 1 {
+				// 如果退出的是参战方（座位1或2），通知所有成员取消角色选择
+				if exitedSeat == 1 || exitedSeat == 2 {
 					r.SendToAllUserOp(&ClientMessage{
 						Op: RoomMessage,
 						Data: map[string]any{
@@ -306,10 +350,16 @@ func (r *Room) GetRoomData() any {
 	data["master"] = r.master.GetUserData()
 	// 用户数据
 	users := util.Array{}
+	seats := map[int]int{} // 座位映射表：{座位号: uid}
 	for _, v := range r.users.List {
-		users.Push(v.(*Client).GetUserData())
+		c := v.(*Client)
+		users.Push(c.GetUserData())
+		if c.seat > 0 {
+			seats[c.seat] = c.uid
+		}
 	}
 	data["users"] = users.List
+	data["seats"] = seats
 	data["max"] = r.option.maxCounts
 	data["data"] = r.customData.Copy()
 	data["state"] = r.roomState.Data.Copy()

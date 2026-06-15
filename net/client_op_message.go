@@ -83,6 +83,16 @@ func (c *Client) OnMessage(data []byte) {
 			return
 		}
 		switch message.Op {
+		case SwitchSeat:
+			if c.room != nil {
+				targetSeat := util.GetMapValueToInt(message.Data, "seat")
+				err := c.room.SwitchSeat(c, targetSeat)
+				if err != nil {
+					c.SendError(OP_ERROR, message.Op, err.Error())
+				}
+			} else {
+				c.SendError(OP_ERROR, message.Op, "不在房间中，无法更换座位")
+			}
 		case Message:
 			// 接收到消息
 			fmt.Println("服务器接收到消息：", message.Data)

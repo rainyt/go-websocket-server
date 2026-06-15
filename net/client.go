@@ -61,6 +61,8 @@ const (
 	UserMessage                ClientAction = 45 // 接收到用户独立消息内容
 	QueryRoomList              ClientAction = 46 // 查询房间列表
 	StopFrameSyncWithoutUnlock ClientAction = 47 // 停止帧同步但不解锁房间（适用于游戏结束后，等待玩家结算的情况
+	SwitchSeat                 ClientAction = 48 // 更换座位
+	SeatUpdate                 ClientAction = 49 // 座位更新通知
 )
 
 type ClientMessage struct {
@@ -102,6 +104,7 @@ type Client struct {
 	frames                 *util.Array  // 用户帧同步缓存操作
 	uid                    int          // 用户ID
 	name                   string       // 用户名称
+	seat                   int          // 房间座位号（1~maxCounts，0=未分配）
 	matchOption            *MatchOption // 房间匹配参数
 	appid                  string       // 绑定的AppId
 }
@@ -191,6 +194,7 @@ func (c *Client) GetUserData() any {
 	data := map[string]any{}
 	data["uid"] = c.uid
 	data["name"] = c.name
+	data["seat"] = c.seat
 	data["data"] = c.userData.Data
 	return data
 }
